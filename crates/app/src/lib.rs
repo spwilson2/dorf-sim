@@ -1,5 +1,6 @@
 mod util;
 mod terminal;
+mod script;
 pub mod prelude {
     pub use bevy::prelude::*;
 }
@@ -37,6 +38,7 @@ pub fn app_main() {
         )))
         .add_plugins(MinimalPlugins)
         .add_plugin(terminal::TerminalPlugin::default())
+        .add_plugin(script::ScriptPlugin::default())
         .run();
     log::info!("exited app");
 }

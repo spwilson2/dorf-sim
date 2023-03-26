@@ -86,7 +86,7 @@ pub struct VirtualDisplayBuffer {
 }
 
 #[derive(Resource)]
-pub struct TerminalDisplayBuffer(VirtualDisplayBuffer);
+pub struct TerminalDisplayBuffer(pub VirtualDisplayBuffer);
 impl TerminalDisplayBuffer {
     fn init_from_screen() -> Self {
         let (width, height) = get_term_size();
