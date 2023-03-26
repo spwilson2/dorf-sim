@@ -1,15 +1,15 @@
 use bevy::app::AppExit;
 
 use crate::prelude::*;
-use crossterm::{ Result};
 use crossterm::event::{poll, read, Event, KeyEvent};
+use crossterm::Result;
 use std::collections::VecDeque;
 use std::sync::Mutex;
 
-use once_cell::sync::Lazy;
 use bevy::input::keyboard::KeyCode as BevyKeyCode;
-use bevy::input::keyboard::{KeyboardInput, ButtonState};
+use bevy::input::keyboard::{ButtonState, KeyboardInput};
 use crossterm::event::KeyCode;
+use once_cell::sync::Lazy;
 
 use crate::util::on_exit::RegisterOnExit;
 
@@ -19,11 +19,10 @@ use std::thread::JoinHandle;
 
 impl Plugin for TerminalInputPlugin {
     fn build(&self, app: &mut App) {
-        app
-        .add_event::<KeyboardInput>()
-        .add_system(handle_input_buffer)
-        .add_system(escape_listener)
-        .add_startup_system(init);
+        app.add_event::<KeyboardInput>()
+            .add_system(handle_input_buffer)
+            .add_system(escape_listener)
+            .add_startup_system(init);
     }
 }
 
@@ -31,31 +30,38 @@ impl Plugin for TerminalInputPlugin {
 struct TerminalState {
     handle: Option<JoinHandle<()>>,
     key_buffer: VecDeque<KeyEvent>,
-    resize: Option<(usize, usize)>
+    resize: Option<(usize, usize)>,
 }
 
-fn input_thread_loop() {    
+fn input_thread_loop() {
     loop {
-
-    if poll(std::time::Duration::from_millis(500)).unwrap() {
-        // It's guaranteed that the `read()` won't block when the `poll()` function returns `true`
-        match read().unwrap() {
-            Event::Key(event) => INPUT_THREAD_BUF.lock().unwrap().key_buffer.push_front(event),
-            Event::Resize(width, height) => INPUT_THREAD_BUF.lock().unwrap().resize = Some((width as usize, height as usize)),
-            _ => (),
+        if poll(std::time::Duration::from_millis(500)).unwrap() {
+            // It's guaranteed that the `read()` won't block when the `poll()` function returns `true`
+            match read().unwrap() {
+                Event::Key(event) => INPUT_THREAD_BUF
+                    .lock()
+                    .unwrap()
+                    .key_buffer
+                    .push_front(event),
+                Event::Resize(width, height) => {
+                    INPUT_THREAD_BUF.lock().unwrap().resize =
+                        Some((width as usize, height as usize))
+                }
+                _ => (),
+            }
+        } else {
+            // Timeout expired and no `Event` is available
         }
-    } else {
-        // Timeout expired and no `Event` is available
     }
 }
-}
 
-static INPUT_THREAD_BUF: Lazy<Mutex<TerminalState>> = Lazy::new(|| Mutex::new( TerminalState{
-    handle: None,
-    key_buffer: VecDeque::default(),
-    resize: None,
-}));
-
+static INPUT_THREAD_BUF: Lazy<Mutex<TerminalState>> = Lazy::new(|| {
+    Mutex::new(TerminalState {
+        handle: None,
+        key_buffer: VecDeque::default(),
+        resize: None,
+    })
+});
 
 fn handle_input_buffer(mut event_writer: EventWriter<KeyboardInput>) {
     let mut input_buf = INPUT_THREAD_BUF.lock().unwrap();
@@ -75,42 +81,41 @@ fn handle_input_buffer(mut event_writer: EventWriter<KeyboardInput>) {
     }
     event_writer.send_batch(events);
 
-    if let Some((w, h)) = input_buf.resize.take() { 
+    if let Some((w, h)) = input_buf.resize.take() {
         // TODO Handle the resize update.
-        println!("reisze {:?}", (w,h));
+        println!("reisze {:?}", (w, h));
     }
 }
 
 fn terminal_keycode_to_bevy(in_code: &crossterm::event::KeyCode) -> Option<BevyKeyCode> {
     Some(match in_code {
         KeyCode::Backspace => BevyKeyCode::Back,
-        KeyCode::Enter=> BevyKeyCode::Return,
-        KeyCode::Left=> BevyKeyCode::Left,
-        KeyCode::Right=> BevyKeyCode::Right,
-        KeyCode::Up=> BevyKeyCode::Up,
-        KeyCode::Down=> BevyKeyCode::Down,
-        KeyCode::Home=> BevyKeyCode::Home,
-        KeyCode::End=> BevyKeyCode::End,
-        KeyCode::PageUp=> BevyKeyCode::PageUp,
-        KeyCode::PageDown=> BevyKeyCode::PageDown,
-        KeyCode::Tab=> BevyKeyCode::Tab,
-        KeyCode::BackTab=> panic!(),
-        KeyCode::Delete=> BevyKeyCode::Delete,
-        KeyCode::Insert=> BevyKeyCode::Insert,
-        KeyCode::F(u8)=> todo!(),
-        KeyCode::Char(c)=> charcode_to_BevyKeyCode(*c),
-        KeyCode::Null=> todo!(),
-        KeyCode::Esc=> BevyKeyCode::Escape,
-        KeyCode::CapsLock=> todo!(),
-        KeyCode::ScrollLock=> todo!(),
-        KeyCode::NumLock=> BevyKeyCode::Numlock,
-        KeyCode::PrintScreen=> todo!(),
-        KeyCode::Pause=> BevyKeyCode::Pause,
-        KeyCode::Menu=> todo!(),
-        KeyCode::KeypadBegin=> todo!(),
-        KeyCode::Media(MediaKeyCode)=> todo!(),
-        KeyCode::Modifier(ModifierKeyCode)=> todo!(),
-
+        KeyCode::Enter => BevyKeyCode::Return,
+        KeyCode::Left => BevyKeyCode::Left,
+        KeyCode::Right => BevyKeyCode::Right,
+        KeyCode::Up => BevyKeyCode::Up,
+        KeyCode::Down => BevyKeyCode::Down,
+        KeyCode::Home => BevyKeyCode::Home,
+        KeyCode::End => BevyKeyCode::End,
+        KeyCode::PageUp => BevyKeyCode::PageUp,
+        KeyCode::PageDown => BevyKeyCode::PageDown,
+        KeyCode::Tab => BevyKeyCode::Tab,
+        KeyCode::BackTab => panic!(),
+        KeyCode::Delete => BevyKeyCode::Delete,
+        KeyCode::Insert => BevyKeyCode::Insert,
+        KeyCode::F(u8) => todo!(),
+        KeyCode::Char(c) => charcode_to_BevyKeyCode(*c),
+        KeyCode::Null => todo!(),
+        KeyCode::Esc => BevyKeyCode::Escape,
+        KeyCode::CapsLock => todo!(),
+        KeyCode::ScrollLock => todo!(),
+        KeyCode::NumLock => BevyKeyCode::Numlock,
+        KeyCode::PrintScreen => todo!(),
+        KeyCode::Pause => BevyKeyCode::Pause,
+        KeyCode::Menu => todo!(),
+        KeyCode::KeypadBegin => todo!(),
+        KeyCode::Media(MediaKeyCode) => todo!(),
+        KeyCode::Modifier(ModifierKeyCode) => todo!(),
     })
 }
 
@@ -189,10 +194,9 @@ fn charcode_to_BevyKeyCode(mut c: char) -> BevyKeyCode {
         //'}' => BevKeyCode::
         //'~' => BevKeyCode::
         // '\'' => BevyKeyCode::
-       _ => todo!(),
+        _ => todo!(),
     }
 }
-
 
 fn escape_listener(mut input: EventReader<KeyboardInput>, mut writer: EventWriter<AppExit>) {
     for e in input.iter() {

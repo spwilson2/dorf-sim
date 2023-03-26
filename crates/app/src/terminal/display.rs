@@ -1,53 +1,52 @@
 use std::io::{stdout, Write};
 
 use crossterm::cursor::MoveTo;
-use crossterm::{execute, QueueableCommand};
-use crossterm::terminal::{disable_raw_mode, size, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen, BeginSynchronizedUpdate, Clear, EndSynchronizedUpdate, ClearType};
 use crossterm::queue;
-
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, size, BeginSynchronizedUpdate, Clear, ClearType,
+    EndSynchronizedUpdate, EnterAlternateScreen, LeaveAlternateScreen,
+};
+use crossterm::{execute, QueueableCommand};
 
 use crate::prelude::*;
-use crate::util::on_exit::{RegisterOnExit, OnExitPlugin};
+use crate::util::on_exit::{OnExitPlugin, RegisterOnExit};
 
 #[derive(Default)]
 pub struct TerminalDisplayPlugin {}
 
-
 impl Plugin for TerminalDisplayPlugin {
     fn build(&self, app: &mut App) {
-        app
-        .add_plugin(OnExitPlugin{})
-        .add_startup_system(init)
-        .insert_resource(TerminalDisplayBuffer::init_from_screen())
-        .add_system(paint);
+        app.add_plugin(OnExitPlugin {})
+            .add_startup_system(init)
+            .insert_resource(TerminalDisplayBuffer::init_from_screen())
+            .add_system(paint);
     }
 }
 
 fn init(mut onexit_register: EventWriter<RegisterOnExit>) {
     enable_raw_mode().unwrap();
-    execute!(
-        stdout(),
-        EnterAlternateScreen,
-    ).unwrap();
+    execute!(stdout(), EnterAlternateScreen,).unwrap();
     onexit_register.send(RegisterOnExit(cleanup));
 }
 
 fn cleanup() {
     log::info!("Performing terminal cleanup");
     disable_raw_mode().unwrap();
-    execute!(
-        stdout(),
-        LeaveAlternateScreen,
-    ).unwrap();
+    execute!(stdout(), LeaveAlternateScreen,).unwrap();
 }
 
 fn paint(term_buffer: Res<TerminalDisplayBuffer>) {
-    // Detect if there's an update. 
+    // Detect if there's an update.
     // If so, perform the render. (TODO: Maybe only render part if necessary?)
     if term_buffer.is_changed() {
         let mut stdout = stdout().lock();
-        queue!(stdout, BeginSynchronizedUpdate, Clear(ClearType::All), MoveTo(0,0)).unwrap();
-
+        queue!(
+            stdout,
+            BeginSynchronizedUpdate,
+            Clear(ClearType::All),
+            MoveTo(0, 0)
+        )
+        .unwrap();
 
         //for (i, c) in term_buffer.0.buf.iter().enumerate() {
         //    let x = i / term_buffer.0.width as usize;
@@ -59,18 +58,38 @@ fn paint(term_buffer: Res<TerminalDisplayBuffer>) {
         if cfg!(debug_assertions) {
             let (width, height) = get_term_size();
             if (width, height) != (term_buffer.0.width, term_buffer.0.height) {
-                log::warn!("Write buffer size: {:?} doesn't match current terminal size: {:?}", (term_buffer.0.width, term_buffer.0.height), (width, height));
+                log::warn!(
+                    "Write buffer size: {:?} doesn't match current terminal size: {:?}",
+                    (term_buffer.0.width, term_buffer.0.height),
+                    (width, height)
+                );
             }
-
         }
 
         // The buffer should match its internal dimmensions
-        debug_assert_eq!(term_buffer.0.buf.len(), term_buffer.0.width as usize * term_buffer.0.height as usize);
+        debug_assert_eq!(
+            term_buffer.0.buf.len(),
+            term_buffer.0.width as usize * term_buffer.0.height as usize
+        );
 
         // Full pass re-render...
-        stdout.write(term_buffer.0.buf.iter().map(|c| *c as u8).collect::<Vec<u8>>().as_slice()).unwrap();
+        stdout
+            .write(
+                term_buffer
+                    .0
+                    .buf
+                    .iter()
+                    .map(|c| *c as u8)
+                    .collect::<Vec<u8>>()
+                    .as_slice(),
+            )
+            .unwrap();
 
-        stdout.queue(EndSynchronizedUpdate).unwrap().flush().unwrap();
+        stdout
+            .queue(EndSynchronizedUpdate)
+            .unwrap()
+            .flush()
+            .unwrap();
     }
 }
 
@@ -91,10 +110,10 @@ impl TerminalDisplayBuffer {
     fn init_from_screen() -> Self {
         let (width, height) = get_term_size();
         log::info!("w,h: {:?},{:?}", width, height);
-        Self (VirtualDisplayBuffer{
+        Self(VirtualDisplayBuffer {
             buf: vec!['\0'; width as usize * height as usize],
-            width: width,
-            height: height,
+            width,
+            height,
         })
     }
 }
