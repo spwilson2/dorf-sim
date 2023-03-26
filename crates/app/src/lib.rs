@@ -11,6 +11,7 @@ pub mod prelude {
 pub mod onexit {
     use crate::prelude::*;
     use std::sync::Mutex;
+    use bevy::app::AppExit;
     use shutdown_hooks::add_shutdown_hook;
     use once_cell::sync::Lazy;
 
@@ -32,15 +33,23 @@ pub mod onexit {
             app
             .insert_resource(OnExitCallbacks {})
             .add_event::<RegisterOnExit>()
-            .add_system(handle_register_onexit.on_startup())
-            .add_system(handle_onexit.on_startup());
+            .add_system(handle_register_onexit)
+            .add_system(handle_app_exit)
+            .add_system(handle_onexit);
 
         }
     }
 
     extern "C" fn on_exit() {
-        for cb in (*CALLBACKS.lock().unwrap()).iter() {
+        for cb in (*CALLBACKS.lock().unwrap()).drain(0..) {
             cb()
+        }
+    }
+
+    // We attempt to cleanly handle the app exiting and only rely on the libc::atexit behavior if we strictly need to.
+    fn handle_app_exit(mut _callbacks: ResMut<OnExitCallbacks>, ev_recv: EventReader<AppExit>) {
+        if !ev_recv.is_empty() {
+            on_exit();
         }
     }
 
@@ -64,10 +73,9 @@ mod terminal;
 
 fn configure_logging() {
     use log::LevelFilter;
-    use log4rs::append::console::ConsoleAppender;
     use log4rs::append::file::FileAppender;
     use log4rs::encode::pattern::PatternEncoder;
-    use log4rs::config::{Appender, Config, Logger, Root};
+    use log4rs::config::{Appender, Config, Root};
 
     let logfile = FileAppender::builder()
     .encoder(Box::new(PatternEncoder::new("{d(%Y-%m-%d %H:%M:%S %Z)(utc)} | {l:<6.6}| {f}:{L} | {m}{n}")))
@@ -94,6 +102,7 @@ pub fn app_main() {
         .add_plugin(terminal::TerminalPlugin::default())
         .add_startup_system(hello_world_system)
         .run();
+    log::info!("exited app");
 }
 
 fn hello_world_system() {println!("hello")}

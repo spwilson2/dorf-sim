@@ -1,7 +1,7 @@
 use std::io::stdout;
 
 use crossterm::execute;
-use crossterm::terminal::{disable_raw_mode, size, enable_raw_mode, EnterAlternateScreen, SetSize, ScrollUp, LeaveAlternateScreen};
+use crossterm::terminal::{disable_raw_mode, size, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 
 use crate::prelude::*;
 use crate::onexit::RegisterOnExit;
@@ -25,13 +25,15 @@ fn init(mut onexit_register: EventWriter<RegisterOnExit>) {
     execute!(
         stdout(),
         EnterAlternateScreen,
-        SetSize(10, 10),
-        ScrollUp(5),
-        LeaveAlternateScreen,
     ).unwrap();
     onexit_register.send(RegisterOnExit(cleanup));
 }
 
 fn cleanup() {
-    disable_raw_mode().unwrap()
+    log::info!("Performing terminal cleanup");
+    disable_raw_mode().unwrap();
+    execute!(
+        stdout(),
+        LeaveAlternateScreen,
+    ).unwrap();
 }
