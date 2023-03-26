@@ -1,75 +1,12 @@
-//! This example will display a simple menu using Bevy UI where you can start a new game,
-//! change some settings or quit. There is no actual game, it will just display the current
-//! settings for 5 seconds before going back to the menu.
-
-mod ecs;
+mod util;
+mod terminal;
 pub mod prelude {
-    pub use crate::ecs::*;
     pub use bevy::prelude::*;
 }
 
-pub mod onexit {
-    use crate::prelude::*;
-    use std::sync::Mutex;
-    use bevy::app::AppExit;
-    use shutdown_hooks::add_shutdown_hook;
-    use once_cell::sync::Lazy;
-
-    pub type Callback = fn() -> ();
-    pub struct RegisterOnExit(pub Callback);
-
-    static CALLBACKS: Lazy<Mutex<Vec<Callback>>> = Lazy::new(|| Mutex::new(vec![]));
-
-    // Note; Even though we use the static variable, we define this Resource to
-    // prevent contention between users.
-    #[derive(Resource)]
-    struct OnExitCallbacks { }
-
-    pub struct OnExitPlugin{}
-
-    impl Plugin for OnExitPlugin {
-        fn build(&self, app: &mut App) {
-            add_shutdown_hook(on_exit);
-            app
-            .insert_resource(OnExitCallbacks {})
-            .add_event::<RegisterOnExit>()
-            .add_system(handle_register_onexit)
-            .add_system(handle_app_exit)
-            .add_system(handle_onexit);
-
-        }
-    }
-
-    extern "C" fn on_exit() {
-        for cb in (*CALLBACKS.lock().unwrap()).drain(0..) {
-            cb()
-        }
-    }
-
-    // We attempt to cleanly handle the app exiting and only rely on the libc::atexit behavior if we strictly need to.
-    fn handle_app_exit(mut _callbacks: ResMut<OnExitCallbacks>, ev_recv: EventReader<AppExit>) {
-        if !ev_recv.is_empty() {
-            on_exit();
-        }
-    }
-
-    fn handle_register_onexit(mut _callbacks: ResMut<OnExitCallbacks>, mut ev_recv: EventReader<RegisterOnExit>) {
-        if !ev_recv.is_empty() {
-            let mut cbs = (*CALLBACKS).lock().unwrap();
-            for ev in ev_recv.iter() {
-                cbs.push(ev.0);
-            }
-        }
-    }
-
-    fn handle_onexit() {}
-}
-
-
-use bevy::{app::ScheduleRunnerSettings, utils::Duration};
 use prelude::*;
+use bevy::{app::ScheduleRunnerSettings, utils::Duration};
 
-mod terminal;
 
 fn configure_logging() {
     use log::LevelFilter;
@@ -100,9 +37,6 @@ pub fn app_main() {
         )))
         .add_plugins(MinimalPlugins)
         .add_plugin(terminal::TerminalPlugin::default())
-        .add_startup_system(hello_world_system)
         .run();
     log::info!("exited app");
 }
-
-fn hello_world_system() {println!("hello")}

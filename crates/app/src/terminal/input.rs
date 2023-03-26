@@ -11,7 +11,7 @@ use bevy::input::keyboard::KeyCode as BevyKeyCode;
 use bevy::input::keyboard::{KeyboardInput, ButtonState};
 use crossterm::event::KeyCode;
 
-use crate::onexit::RegisterOnExit;
+use crate::util::on_exit::RegisterOnExit;
 
 #[derive(Default)]
 pub struct TerminalInputPlugin {}

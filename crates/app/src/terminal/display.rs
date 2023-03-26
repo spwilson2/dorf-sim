@@ -7,7 +7,7 @@ use crossterm::queue;
 
 
 use crate::prelude::*;
-use crate::onexit::RegisterOnExit;
+use crate::util::on_exit::{RegisterOnExit, OnExitPlugin};
 
 #[derive(Default)]
 pub struct TerminalDisplayPlugin {}
@@ -16,7 +16,7 @@ pub struct TerminalDisplayPlugin {}
 impl Plugin for TerminalDisplayPlugin {
     fn build(&self, app: &mut App) {
         app
-        .add_plugin(crate::onexit::OnExitPlugin{})
+        .add_plugin(OnExitPlugin{})
         .add_startup_system(init)
         .insert_resource(TerminalDisplayBuffer::init_from_screen())
         .add_system(paint);
