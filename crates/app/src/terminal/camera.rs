@@ -82,6 +82,9 @@ impl TerminalCamera2d {
     pub fn z(&self) -> f32 {
         self.loc.z
     }
+    pub fn move_by(&mut self, vec: Vec3) {
+        self.loc += vec;
+    }
     pub fn move_x(&mut self, x: f32) {
         self.loc.x += x
     }

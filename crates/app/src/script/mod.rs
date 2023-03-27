@@ -6,7 +6,7 @@ use crate::{
     },
 };
 
-use bevy::input::keyboard::KeyboardInput;
+use bevy::input::keyboard::{ButtonState, KeyboardInput};
 
 #[derive(Default)]
 pub struct ScriptPlugin();
@@ -22,22 +22,22 @@ impl Plugin for ScriptPlugin {
 fn spawn_textures(mut cmd: Commands) {
     cmd.spawn(TextureRect {
         texture: 'a',
-        dim: Vec2::new(2.0, 2.0),
+        dim: Vec2::new(2.0, 1.0),
         loc: Vec2::new(0.0, 0.0),
         loc_z: 1.0,
     });
-    cmd.spawn(TextureRect {
-        texture: 'b',
-        dim: Vec2::new(1.0, 1.0),
-        loc: Vec2::new(0.0, 0.0),
-        loc_z: 2.0,
-    });
-    cmd.spawn(TextureRect {
-        texture: '.',
-        dim: Vec2::new(1000.0, 1000.0),
-        loc: Vec2::new(0.0, 0.0),
-        loc_z: 1.0,
-    });
+    //cmd.spawn(TextureRect {
+    //    texture: 'b',
+    //    dim: Vec2::new(1.0, 1.0),
+    //    loc: Vec2::new(0.0, 0.0),
+    //    loc_z: 2.0,
+    //});
+    //cmd.spawn(TextureRect {
+    //    texture: '.',
+    //    dim: Vec2::new(1000.0, 1000.0),
+    //    loc: Vec2::new(0.0, 0.0),
+    //    loc_z: 1.0,
+    //});
 
     let vert_wall = TextureRect {
         texture: '-',
@@ -91,38 +91,43 @@ enum CameraSide {
 
 fn handle_camera_resized(
     mut walls: Query<(&mut TextureRect, &CameraSide)>,
+    camera: Res<TerminalCamera2d>,
     mut event: EventReader<CameraResized>,
 ) {
     if let Some(event) = event.iter().last() {
-        for mut wall in walls.iter_mut() {
-            match *wall.1 {
-                CameraSide::Left => {
-                    wall.0.loc.x = (-(event.0.x as isize / 2) + 1) as f32;
-                    wall.0.loc.y = 0.0;
-                    wall.0.dim.x = 1.0;
-                    wall.0.dim.y = event.0.y;
-                }
-                CameraSide::Right => {
-                    wall.0.loc.x = ((event.0.x as isize / 2) - 1) as f32;
-                    wall.0.loc.y = 0.0;
-                    wall.0.dim.x = 1.0;
-                    wall.0.dim.y = event.0.y;
-                }
-                CameraSide::Top => {
-                    wall.0.loc.y = (-(event.0.y as isize / 2) + 1) as f32;
-                    wall.0.loc.x = 0.0;
-                    wall.0.dim.x = event.0.x;
-                    wall.0.dim.y = 1.0;
-                }
-                CameraSide::Bottom => {
-                    wall.0.loc.y = ((event.0.y as isize / 2) - 1) as f32;
-                    wall.0.loc.x = 0.0;
-                    wall.0.dim.x = event.0.x;
-                    wall.0.dim.y = 1.0;
-                }
-                //CameraSide::Right => todo!(),
-                //CameraSide::Top => todo!(),
-                //CameraSide::Bottom => todo!(),
+        center_camera_frame(&camera, &mut walls)
+    }
+}
+
+fn center_camera_frame(
+    camera: &TerminalCamera2d,
+    walls: &mut Query<(&mut TextureRect, &CameraSide)>,
+) {
+    for mut wall in walls.iter_mut() {
+        match *wall.1 {
+            CameraSide::Left => {
+                wall.0.loc.x = -camera.dim().x / 2.0 + 1.0 + camera.loc().x;
+                wall.0.loc.y = camera.loc().y;
+                wall.0.dim.x = 1.0;
+                wall.0.dim.y = camera.dim().y;
+            }
+            CameraSide::Right => {
+                wall.0.loc.x = camera.dim().x / 2.0 + camera.loc().x;
+                wall.0.loc.y = camera.loc().y;
+                wall.0.dim.x = 1.0;
+                wall.0.dim.y = camera.dim().y;
+            }
+            CameraSide::Top => {
+                wall.0.loc.x = camera.loc().x;
+                wall.0.loc.y = -camera.dim().y / 2.0 + 1.0 + camera.loc().y;
+                wall.0.dim.x = camera.dim().x;
+                wall.0.dim.y = 1.0;
+            }
+            CameraSide::Bottom => {
+                wall.0.loc.x = camera.loc().x;
+                wall.0.loc.y = camera.dim().y / 2.0 + camera.loc().y;
+                wall.0.dim.x = camera.dim().x;
+                wall.0.dim.y = 1.0;
             }
         }
     }
@@ -130,20 +135,11 @@ fn handle_camera_resized(
 
 fn move_camera(
     direction: Vec2,
-    mut camera: &mut ResMut<TerminalCamera2d>,
-    mut walls: &mut Query<(&mut TextureRect, &CameraSide)>,
+    camera: &mut ResMut<TerminalCamera2d>,
+    walls: &mut Query<(&mut TextureRect, &CameraSide)>,
 ) {
-    if direction.x != 0.0 {
-        camera.move_x(direction.x);
-        for mut wall in walls.iter_mut() {
-            wall.0.loc.x += direction.x;
-        }
-    } else if direction.y != 0.0 {
-        camera.move_y(direction.y);
-        for mut wall in walls.iter_mut() {
-            wall.0.loc.y += direction.y;
-        }
-    }
+    camera.move_by(Vec3::new(direction.x, direction.y, 0.0));
+    center_camera_frame(&*camera, walls);
 }
 
 fn handle_camera_movement_keys(
@@ -152,6 +148,9 @@ fn handle_camera_movement_keys(
     mut walls: Query<(&mut TextureRect, &CameraSide)>,
 ) {
     for e in input.iter() {
+        if e.state != ButtonState::Pressed {
+            continue;
+        }
         if let Some(k) = e.key_code {
             match k {
                 KeyCode::D => move_camera(Vec2::new(1.0, 0.0), &mut camera, &mut walls),
