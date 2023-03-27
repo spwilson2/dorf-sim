@@ -199,6 +199,7 @@ dependencies = [
  "log4rs",
  "once_cell",
  "shutdown_hooks",
+ "signal-hook",
 ]
 
 [[package]]
