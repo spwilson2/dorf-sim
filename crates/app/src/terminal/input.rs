@@ -208,7 +208,7 @@ fn charcode_to_bevy_key_code(c: char) -> BevyKeyCode {
 fn escape_listener(mut input: EventReader<KeyboardInput>, mut writer: EventWriter<AppExit>) {
     for e in input.iter() {
         if let Some(k) = e.key_code {
-            if k == BevyKeyCode::Escape {
+            if [BevyKeyCode::Escape, BevyKeyCode::Q].contains(&k) {
                 writer.send(AppExit);
             }
         }

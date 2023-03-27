@@ -28,14 +28,15 @@ impl Plugin for TerminalDisplayPlugin {
 
 fn init(mut onexit_register: EventWriter<RegisterOnExit>) {
     enable_raw_mode().unwrap();
-    execute!(stdout(), EnterAlternateScreen,).unwrap();
+    execute!(stdout(), EnterAlternateScreen, crossterm::cursor::Hide,).unwrap();
+
     onexit_register.send(RegisterOnExit(cleanup));
 }
 
 fn cleanup() {
     log::info!("Performing terminal cleanup");
     disable_raw_mode().unwrap();
-    execute!(stdout(), LeaveAlternateScreen,).unwrap();
+    execute!(stdout(), LeaveAlternateScreen, crossterm::cursor::Show).unwrap();
 }
 
 fn handle_terminal_resize(

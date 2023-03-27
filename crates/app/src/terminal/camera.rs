@@ -5,16 +5,34 @@ use super::input::TerminalResize;
 #[derive(Default)]
 pub struct TerminalCamera2dPlugin();
 
+#[derive(Default)]
+pub struct CameraResized(pub Vec2);
+
 impl Plugin for TerminalCamera2dPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(TerminalCamera2d::default())
+            .add_startup_system(init_camera_autosize)
+            .add_event::<CameraResized>()
             .add_system(handle_terminal_resize);
+    }
+}
+
+fn init_camera_autosize(
+    mut camera: ResMut<TerminalCamera2d>,
+    mut camera_event_writer: EventWriter<CameraResized>,
+) {
+    if camera.settings_ref().autoresize() {
+        let term_size = crossterm::terminal::size().unwrap();
+        let update = Vec2::new(term_size.0 as f32, term_size.1 as f32);
+        camera.set_dim(update);
+        camera_event_writer.send(CameraResized(update));
     }
 }
 
 fn handle_terminal_resize(
     mut camera: ResMut<TerminalCamera2d>,
     mut resize_reader: EventReader<TerminalResize>,
+    mut camera_event_writer: EventWriter<CameraResized>,
 ) {
     if !camera.settings_ref().autoresize() {
         return;
@@ -23,6 +41,7 @@ fn handle_terminal_resize(
         let update = Vec2::new(resize.width as f32, resize.height as f32);
         if update != camera.dim() {
             camera.set_dim(update);
+            camera_event_writer.send(CameraResized(update));
         }
     }
 }
@@ -62,6 +81,15 @@ impl TerminalCamera2d {
     }
     pub fn z(&self) -> f32 {
         self.loc.z
+    }
+    pub fn move_x(&mut self, x: f32) {
+        self.loc.x += x
+    }
+    pub fn move_y(&mut self, y: f32) {
+        self.loc.y += y
+    }
+    pub fn move_z(&mut self, z: f32) {
+        self.loc.z += z
     }
     pub fn set_x(&mut self, x: f32) {
         self.loc.x = x
