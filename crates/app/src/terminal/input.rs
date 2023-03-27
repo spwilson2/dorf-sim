@@ -20,6 +20,7 @@ use std::thread::JoinHandle;
 impl Plugin for TerminalInputPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<KeyboardInput>()
+            .add_event::<TerminalResize>()
             .add_system(handle_input_buffer)
             .add_system(escape_listener)
             .add_startup_system(init);
@@ -30,7 +31,7 @@ impl Plugin for TerminalInputPlugin {
 struct TerminalState {
     handle: Option<JoinHandle<()>>,
     key_buffer: VecDeque<KeyEvent>,
-    resize: Option<(usize, usize)>,
+    resize: Option<TerminalResize>,
 }
 
 fn input_thread_loop() {
@@ -44,8 +45,7 @@ fn input_thread_loop() {
                     .key_buffer
                     .push_front(event),
                 Event::Resize(width, height) => {
-                    INPUT_THREAD_BUF.lock().unwrap().resize =
-                        Some((width as usize, height as usize))
+                    INPUT_THREAD_BUF.lock().unwrap().resize = Some(TerminalResize { width, height })
                 }
                 _ => (),
             }
@@ -63,7 +63,16 @@ static INPUT_THREAD_BUF: Lazy<Mutex<TerminalState>> = Lazy::new(|| {
     })
 });
 
-fn handle_input_buffer(mut event_writer: EventWriter<KeyboardInput>) {
+#[derive(Debug, Default, Clone)]
+pub struct TerminalResize {
+    pub width: u16,
+    pub height: u16,
+}
+
+fn handle_input_buffer(
+    mut input_writer: EventWriter<KeyboardInput>,
+    mut resize_writer: EventWriter<TerminalResize>,
+) {
     let mut input_buf = INPUT_THREAD_BUF.lock().unwrap();
 
     let mut events = Vec::new();
@@ -79,11 +88,10 @@ fn handle_input_buffer(mut event_writer: EventWriter<KeyboardInput>) {
         res.state = ButtonState::Released;
         events.push(res);
     }
-    event_writer.send_batch(events);
+    input_writer.send_batch(events);
 
-    if let Some((w, h)) = input_buf.resize.take() {
-        // TODO Handle the resize update.
-        println!("reisze {:?}", (w, h));
+    if let Some(resize) = input_buf.resize.take() {
+        resize_writer.send(resize);
     }
 }
 
