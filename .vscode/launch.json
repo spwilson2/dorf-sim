@@ -59,6 +59,12 @@
             },
             "args": [],
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Attach to running df2",
+            "type": "lldb",
+            "request": "attach",
+            "program": "${workspaceFolder}/target/debug/df2",
         }
     ]
 }

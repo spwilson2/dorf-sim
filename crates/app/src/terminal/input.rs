@@ -2,7 +2,6 @@ use bevy::app::AppExit;
 
 use crate::prelude::*;
 use crossterm::event::{poll, read, Event, KeyEvent};
-use crossterm::Result;
 use std::collections::VecDeque;
 use std::sync::Mutex;
 
@@ -112,7 +111,7 @@ fn terminal_keycode_to_bevy(in_code: &crossterm::event::KeyCode) -> Option<BevyK
         KeyCode::Delete => BevyKeyCode::Delete,
         KeyCode::Insert => BevyKeyCode::Insert,
         KeyCode::F(u8) => todo!(),
-        KeyCode::Char(c) => charcode_to_BevyKeyCode(*c),
+        KeyCode::Char(c) => charcode_to_bevy_key_code(*c),
         KeyCode::Null => todo!(),
         KeyCode::Esc => BevyKeyCode::Escape,
         KeyCode::CapsLock => todo!(),
@@ -122,12 +121,12 @@ fn terminal_keycode_to_bevy(in_code: &crossterm::event::KeyCode) -> Option<BevyK
         KeyCode::Pause => BevyKeyCode::Pause,
         KeyCode::Menu => todo!(),
         KeyCode::KeypadBegin => todo!(),
-        KeyCode::Media(MediaKeyCode) => todo!(),
-        KeyCode::Modifier(ModifierKeyCode) => todo!(),
+        KeyCode::Media(media_key_codee) => todo!(),
+        KeyCode::Modifier(modifier_key_code) => todo!(),
     })
 }
 
-fn charcode_to_BevyKeyCode(mut c: char) -> BevyKeyCode {
+fn charcode_to_bevy_key_code(c: char) -> BevyKeyCode {
     match c {
         '1' => BevyKeyCode::Key1,
         '2' => BevyKeyCode::Key2,
@@ -209,14 +208,14 @@ fn charcode_to_BevyKeyCode(mut c: char) -> BevyKeyCode {
 fn escape_listener(mut input: EventReader<KeyboardInput>, mut writer: EventWriter<AppExit>) {
     for e in input.iter() {
         if let Some(k) = e.key_code {
-            if (k == BevyKeyCode::Escape) {
+            if k == BevyKeyCode::Escape {
                 writer.send(AppExit);
             }
         }
     }
 }
 
-fn init(mut onexit_register: EventWriter<RegisterOnExit>) {
+fn init(onexit_register: EventWriter<RegisterOnExit>) {
     // Spawn IO thread which reads and buffers input, we'll check every frame for input.
     INPUT_THREAD_BUF.lock().unwrap().handle = Some(std::thread::spawn(input_thread_loop));
 }

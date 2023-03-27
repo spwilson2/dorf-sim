@@ -1,19 +1,15 @@
-use crate::prelude::*;
-use crate::terminal::render::{TerminalCamera2d, TextureRect};
+use crate::{
+    prelude::*,
+    terminal::{camera::TerminalCamera2d, render::TextureRect},
+};
 
 #[derive(Default)]
 pub struct ScriptPlugin();
 
 impl Plugin for ScriptPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(initialize_camera)
-            .add_startup_system(spawn_textures);
+        app.add_startup_system(spawn_textures);
     }
-}
-
-fn initialize_camera(mut camera: ResMut<TerminalCamera2d>) {
-    camera.dim = Vec2::new(10.0, 10.0);
-    camera.loc = Vec3::new(5.0, 5.0, 1.0);
 }
 
 fn spawn_textures(mut cmd: Commands) {

@@ -9,53 +9,10 @@ use bevy::math::Vec3Swizzles;
 /// Render logic is super simple: The TextureRect with the highest z value will be painted.
 use crate::prelude::*;
 
-use super::display::{self, TerminalDisplayBuffer};
-
-#[derive(Resource, Default)]
-pub struct TerminalCamera2d {
-    pub dim: Vec2,
-    pub loc: Vec3,
-    settings: TerminalCamera2dSettings,
-}
-
-impl TerminalCamera2d {
-    pub fn settings(&self) -> &TerminalCamera2dSettings {
-        &self.settings
-    }
-}
-
-#[derive(Clone)]
-pub struct TerminalCamera2dSettings {
-    /// If enabled, rendering will attempt to stretch objects to fit the screen instead of rending each tile invdidually.
-    stretch: bool,
-    autoresize: bool,
-}
-impl Default for TerminalCamera2dSettings {
-    fn default() -> Self {
-        Self {
-            stretch: false,
-            autoresize: true,
-        }
-    }
-}
-
-impl TerminalCamera2dSettings {
-    fn autoresize(&self) -> bool {
-        self.autoresize
-    }
-
-    fn set_autoresize(&mut self, autoresize: bool) {
-        self.autoresize = autoresize;
-    }
-
-    pub fn set_stretch(&mut self, stretch: bool) {
-        self.stretch = stretch;
-    }
-
-    pub fn stretch(&self) -> bool {
-        self.stretch
-    }
-}
+use super::{
+    camera::TerminalCamera2d,
+    display::{self, TerminalDisplayBuffer},
+};
 
 #[derive(Component, Clone)]
 pub struct TextureRect {
@@ -70,8 +27,7 @@ pub struct TerminalRenderPlugin();
 
 impl Plugin for TerminalRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(TerminalCamera2d::default())
-            .add_system(render);
+        app.add_system(render);
     }
 }
 
@@ -117,21 +73,21 @@ fn render(
     mut cache: Local<RenderCache>,
     changed: Query<&TextureRect, Changed<TextureRect>>,
     query: Query<&TextureRect>,
-    mut camera: ResMut<TerminalCamera2d>,
+    camera: ResMut<TerminalCamera2d>,
     mut display_buf: ResMut<TerminalDisplayBuffer>,
 ) {
-    if changed.is_empty() && !display_buf.is_changed() {
+    if changed.is_empty() && !display_buf.is_changed() && !camera.is_changed() {
         return;
     }
     let buf_width = display_buf.0.width;
     let buf_height = display_buf.0.height;
-    if camera.settings().autoresize() {
-        camera.dim.x = buf_width as f32;
-        camera.dim.y = buf_height as f32;
+    if camera.settings_ref().autoresize() {
+        camera.dim().x = buf_width as f32;
+        camera.dim().y = buf_height as f32;
     }
 
     // Get bounds/dimensions to paint, we won't need to pain anything outside bounds.
-    let camera_rec = Rect::from_center_size(camera.loc.xy(), camera.dim);
+    let camera_rec = Rect::from_center_size(camera.loc().xy(), camera.dim());
 
     cache.sort_cache.clear();
     cache
@@ -148,10 +104,10 @@ fn render(
         .buf
         .resize((buf_height * buf_width) as usize, ' ');
 
-    if buf_width < camera.dim.x as u16 || buf_height < camera.dim.y as u16 {
+    if buf_width < camera.dim().x as u16 || buf_height < camera.dim().y as u16 {
         log::warn!(
             "Camera dimmensions larger than terminal ({:?}) > {:?}",
-            (camera.dim.x as usize, camera.dim.y as usize),
+            (camera.dim().x as usize, camera.dim().y as usize),
             (buf_width, buf_height)
         );
     }
@@ -177,7 +133,7 @@ fn render(
         let start_y;
         let end_x;
         let end_y;
-        if camera.settings.stretch() {
+        if camera.settings_ref().stretch() {
             let norm_min = normalize_point(overlap.min, camera_rec.max, camera_rec.min);
             let norm_max = normalize_point(overlap.max, camera_rec.max, camera_rec.min);
             (start_x, start_y) = normalized_point_to_tile(norm_min, buf_width, buf_height);

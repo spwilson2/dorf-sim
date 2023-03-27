@@ -4,10 +4,9 @@ use crossterm::cursor::MoveTo;
 use crossterm::queue;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, size, BeginSynchronizedUpdate, Clear, ClearType,
-    EndSynchronizedUpdate, EnterAlternateScreen, LeaveAlternateScreen,
+    EndSynchronizedUpdate, EnterAlternateScreen, LeaveAlternateScreen, SetSize,
 };
 use crossterm::{execute, QueueableCommand};
-use scopeguard::defer;
 
 use crate::prelude::*;
 use crate::util::on_exit::{OnExitPlugin, RegisterOnExit};
@@ -29,14 +28,14 @@ impl Plugin for TerminalDisplayPlugin {
 
 fn init(mut onexit_register: EventWriter<RegisterOnExit>) {
     enable_raw_mode().unwrap();
-    //execute!(stdout(), EnterAlternateScreen,).unwrap();
+    execute!(stdout(), EnterAlternateScreen,).unwrap();
     onexit_register.send(RegisterOnExit(cleanup));
 }
 
 fn cleanup() {
     log::info!("Performing terminal cleanup");
     disable_raw_mode().unwrap();
-    //execute!(stdout(), LeaveAlternateScreen,).unwrap();
+    execute!(stdout(), LeaveAlternateScreen,).unwrap();
 }
 
 fn handle_terminal_resize(
@@ -50,6 +49,8 @@ fn handle_terminal_resize(
         term_buffer
             .physical_frame_mut()
             .resize(resize.width, resize.height);
+        // Resize events will fk shit up, we'll need to repaint.
+        term_buffer.enable_flush();
     }
 }
 
@@ -139,7 +140,8 @@ fn paint(mut term_buffer: ResMut<TerminalDisplayBuffer>) {
             stdout,
             BeginSynchronizedUpdate,
             MoveTo(0, 0),
-            Clear(ClearType::All)
+            // I don't know what this would actually do.. won't bother enabling for now.
+            //SetSize(width, height),
         )
         .unwrap();
         // Now just iterate, write in only changes...
