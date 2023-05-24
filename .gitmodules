@@ -1,6 +1,6 @@
 [submodule "crates/bevy"]
-	path = crates/bevy
+	path = rust-src/crates/bevy
 	url = https://github.com/bevyengine/bevy
 [submodule "crates/gdnative"]
-	path = crates/gdnative
+	path = rust-src/crates/gdnative
 	url = https://github.com/godot-rust/gdnative
