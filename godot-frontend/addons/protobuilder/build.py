@@ -45,3 +45,7 @@ for root, dirs, files in os.walk(PROTO_DIR):
             process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             with process.stdout:
                 log_subprocess_output(process.stdout)
+            
+            retcode = process.wait()
+            if retcode != 0:
+                raise subprocess.CalledProcessError(retcode, ' '.join(args))

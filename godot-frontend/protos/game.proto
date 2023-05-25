@@ -2,6 +2,12 @@ syntax = "proto3";
 
 package game;
 
+service Frontend {
+    rpc Move(Position) returns(Null);
+}
+
+message Null {}
+
 message Position {
     int32 x = 1;
     int32 y = 2;
