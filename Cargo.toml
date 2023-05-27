@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+    "dorf-lib",
+    "dorf-sim",
+]
+exclude = ["crates/bevy"]

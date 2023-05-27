@@ -1,0 +1,6 @@
+[submodule "crates/proto-gen"]
+	path = crates/proto-gen
+	url = https://github.com/spwilson2/proto-gen.git
+[submodule "crates/bevy"]
+	path = crates/bevy
+	url = https://github.com/bevyengine/bevy
