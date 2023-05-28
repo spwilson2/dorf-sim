@@ -6,7 +6,7 @@ use std::{
 use bevy::math::Vec3Swizzles;
 
 /// This plugin is responsible for providing Components which can be rendered down onto a terminal screen and then painted.
-/// Render logic is super simple: The TextureRect with the highest z value will be painted.
+/// Render logic is super simple: The TransformTexture with the highest z value will be painted.
 use crate::prelude::*;
 
 use super::{
@@ -14,12 +14,23 @@ use super::{
     display::{self, TerminalDisplayBuffer},
 };
 
+#[derive(Bundle, Clone)]
+pub struct CharTextureTransform {
+    texture: CharTexture,
+    transform: Transform,
+}
+
+/// Simple texture on top of transform
 #[derive(Component, Clone)]
-pub struct TextureRect {
+pub struct CharTexture {
     pub texture: char,
-    pub dim: Vec2,
+}
+
+#[derive(Debug, Component, Clone)]
+pub struct Transform {
+    pub size: Vec2,
     pub loc: Vec2,
-    pub loc_z: f32,
+    pub z_lvl: i32,
 }
 
 #[derive(Default)]
@@ -35,7 +46,7 @@ impl Plugin for TerminalRenderPlugin {
 #[derive(Default)]
 struct RenderCache {
     buf: Vec<Tile>,
-    sort_cache: Vec<TextureRect>,
+    sort_cache: Vec<CharTextureTransform>,
     width: u16,
     depth: u16,
 }
@@ -71,8 +82,8 @@ fn normalized_point_to_tile(point: Vec2, width: u16, height: u16) -> (u16, u16) 
 
 fn render(
     mut cache: Local<RenderCache>,
-    changed: Query<&TextureRect, Changed<TextureRect>>,
-    query: Query<&TextureRect>,
+    changed: Query<(&CharTexture, &Transform), Changed<Transform>>,
+    query: Query<(&CharTexture, &Transform)>,
     camera: ResMut<TerminalCamera2d>,
     mut display_buf: ResMut<TerminalDisplayBuffer>,
 ) {
@@ -90,12 +101,17 @@ fn render(
     let camera_rec = Rect::from_center_size(camera.loc().xy(), camera.dim());
 
     cache.sort_cache.clear();
+    cache.sort_cache.extend(
+        query
+            .iter()
+            .map(|(texture, transform)| CharTextureTransform {
+                texture: texture.clone(),
+                transform: transform.clone(),
+            }),
+    );
     cache
         .sort_cache
-        .extend(query.iter().map(|rect_ref| (rect_ref).clone()));
-    cache
-        .sort_cache
-        .sort_by(|l, r| r.loc_z.partial_cmp(&l.loc_z).unwrap());
+        .sort_by(|l, r| r.transform.z_lvl.partial_cmp(&l.transform.z_lvl).unwrap());
 
     // Start by clearing the frame buffer, render will completely fill it.
     display_buf.0.buf.clear();
@@ -114,9 +130,12 @@ fn render(
 
     // For each tile keep the texture of the max z.
     // (Obviously this is the naive and super inefficient way to do this, but I don't know anything about SIMD/GPU optimizations for layering textures...)
-    for texture in cache.sort_cache.iter() {
+    for text_transform in cache.sort_cache.iter() {
         // Iterate through all textures,
-        let overlap = camera_rec.intersect(Rect::from_center_size(texture.loc, texture.dim));
+        let overlap = camera_rec.intersect(Rect::from_center_size(
+            text_transform.transform.loc,
+            text_transform.transform.size,
+        ));
         if overlap.is_empty() {
             continue;
         }
@@ -158,7 +177,7 @@ fn render(
                     .get_mut((col + row * buf_width) as usize)
                     .unwrap();
                 if *tile == ' ' {
-                    *tile = texture.texture;
+                    *tile = text_transform.texture.texture;
                 }
             }
         }

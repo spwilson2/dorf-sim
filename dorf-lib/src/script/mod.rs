@@ -2,7 +2,8 @@ use crate::{
     prelude::*,
     terminal::{
         camera::{CameraResized, TerminalCamera2d},
-        render::TextureRect,
+        render::CharTexture,
+        render::Transform,
     },
 };
 
@@ -23,23 +24,10 @@ impl Plugin for ScriptPlugin {
     }
 }
 
-// TODO Convert the TextureRect to ths.
-// #[derive(Component)]
-// struct Transform {
-//     pub position: Vec3,
-//     pub size: Vec3,
-// }
-
 #[derive(Component)]
 struct MovePath {
     steps: Vec<Vec2>,
 }
-
-// TODO: Add these to the move algo.
-// . #[derive(Component)]
-// struct Collider {
-//     transform: Transform,
-// }
 
 #[derive(Component)]
 struct GoalLoc ( Vec2);
@@ -50,7 +38,8 @@ struct Speed (f32 );
 struct Player {
     speed: Speed,
     goal: GoalLoc,
-    rect: TextureRect,
+    rect: CharTexture,
+    transform: Transform,
 }
 
 fn system_assign_optimal_path(
@@ -70,7 +59,7 @@ fn system_assign_optimal_path(
 fn system_move_on_optimal_path(
     mut cmd: Commands, 
     time: Res<Time>,
-    mut q: Query<(Entity, &mut MovePath, &mut TextureRect, &Speed)>,
+    mut q: Query<(Entity, &mut MovePath, &mut Transform, &Speed)>,
 ) {
     log::info!("in move optimal");
     for (entity, mut path, mut rect, speed) in q.iter_mut() { 
@@ -103,11 +92,13 @@ fn spawn_mv_player(mut cmd: Commands) {
     cmd.spawn(Player { 
         speed: Speed(1.5),
         goal: GoalLoc(Vec2::new(10.0, 10.0)),
-        rect: TextureRect{
+        rect: CharTexture{
         texture: 'p',
-        dim: Vec2::new(1.0, 1.0),
+        },
+        transform: Transform {
+        size: Vec2::new(1.0, 1.0),
         loc: Vec2::new(0.0, 0.0),
-        loc_z: 2.0,
+        z_lvl: 2,
         }});
     }
 /// - Create a player with a random intended path
@@ -125,39 +116,47 @@ fn spawn_mv_player(mut cmd: Commands) {
 
 
 fn spawn_textures(mut cmd: Commands) {
-    cmd.spawn(TextureRect {
-        texture: 'a',
-        dim: Vec2::new(1.0, 1.0),
-        loc: Vec2::new(0.0, 0.0),
-        loc_z: 1.0,
-    });
-    let vert_wall = TextureRect {
+    let vert_wall = CharTexture {
         texture: '-',
-        dim: Vec2::new(1.0, 2.0),
-        loc: Vec2::new(0.0, 0.0),
-        loc_z: 1000.0,
     };
-    let side_wall = TextureRect {
-        texture: '|',
-        dim: Vec2::new(2.0, 1.0),
+    let vert_wall_trans = Transform {
+        size: Vec2::new(1.0, 2.0),
         loc: Vec2::new(0.0, 0.0),
-        loc_z: 1000.0,
+        z_lvl: 1000,
     };
+    let side_wall = CharTexture {
+        texture: '|'};
+    let side_wall_trans = Transform {
+        size: Vec2::new(2.0, 1.0),
+        loc: Vec2::new(0.0, 0.0),
+        z_lvl: 1000,
+    };
+    cmd.spawn((CharTexture {
+        texture: 'a',
+    }, Transform {
+        size: Vec2::new(1.0, 1.0),
+        loc: Vec2::new(0.0, 0.0),
+        z_lvl: 1,
+    }));
     cmd.spawn_batch([
         CameraFrameWallBundle {
             texture: side_wall.clone(),
+            transform: side_wall_trans.clone(),
             side: CameraSide::Right,
         },
         CameraFrameWallBundle {
             texture: side_wall,
+            transform: side_wall_trans.clone(),
             side: CameraSide::Left,
         },
         CameraFrameWallBundle {
             texture: vert_wall.clone(),
+            transform: vert_wall_trans.clone(),
             side: CameraSide::Top,
         },
         CameraFrameWallBundle {
             texture: vert_wall,
+            transform: side_wall_trans.clone(),
             side: CameraSide::Bottom,
         },
     ]);
@@ -169,7 +168,8 @@ struct CameraFrame {}
 
 #[derive(Bundle)]
 struct CameraFrameWallBundle {
-    texture: TextureRect,
+    texture: CharTexture,
+    transform: Transform,
     side: CameraSide,
 }
 
@@ -182,7 +182,7 @@ enum CameraSide {
 }
 
 fn handle_camera_resized(
-    mut walls: Query<(&mut TextureRect, &CameraSide)>,
+    mut walls: Query<(&mut Transform, &CameraSide)>,
     camera: Res<TerminalCamera2d>,
     mut event: EventReader<CameraResized>,
 ) {
@@ -193,33 +193,33 @@ fn handle_camera_resized(
 
 fn center_camera_frame(
     camera: &TerminalCamera2d,
-    walls: &mut Query<(&mut TextureRect, &CameraSide)>,
+    walls: &mut Query<(&mut Transform, &CameraSide)>,
 ) {
     for mut wall in walls.iter_mut() {
         match *wall.1 {
             CameraSide::Left => {
                 wall.0.loc.x = -camera.dim().x / 2.0 + 1.0 + camera.loc().x;
                 wall.0.loc.y = camera.loc().y;
-                wall.0.dim.x = 1.0;
-                wall.0.dim.y = camera.dim().y;
+                wall.0.size.x = 1.0;
+                wall.0.size.y = camera.dim().y;
             }
             CameraSide::Right => {
                 wall.0.loc.x = camera.dim().x / 2.0 + camera.loc().x;
                 wall.0.loc.y = camera.loc().y;
-                wall.0.dim.x = 1.0;
-                wall.0.dim.y = camera.dim().y;
+                wall.0.size.x = 1.0;
+                wall.0.size.y = camera.dim().y;
             }
             CameraSide::Top => {
                 wall.0.loc.x = camera.loc().x;
                 wall.0.loc.y = -camera.dim().y / 2.0 + 1.0 + camera.loc().y;
-                wall.0.dim.x = camera.dim().x;
-                wall.0.dim.y = 1.0;
+                wall.0.size.x = camera.dim().x;
+                wall.0.size.y = 1.0;
             }
             CameraSide::Bottom => {
                 wall.0.loc.x = camera.loc().x;
                 wall.0.loc.y = camera.dim().y / 2.0 + camera.loc().y;
-                wall.0.dim.x = camera.dim().x;
-                wall.0.dim.y = 1.0;
+                wall.0.size.x = camera.dim().x;
+                wall.0.size.y = 1.0;
             }
         }
     }
@@ -228,7 +228,7 @@ fn center_camera_frame(
 fn move_camera(
     direction: Vec2,
     camera: &mut ResMut<TerminalCamera2d>,
-    walls: &mut Query<(&mut TextureRect, &CameraSide)>,
+    walls: &mut Query<(&mut Transform, &CameraSide)>,
 ) {
     camera.move_by(Vec3::new(direction.x, direction.y, 0.0));
     center_camera_frame(&*camera, walls);
@@ -237,7 +237,7 @@ fn move_camera(
 fn handle_camera_movement_keys(
     mut input: EventReader<KeyboardInput>,
     mut camera: ResMut<TerminalCamera2d>,
-    mut walls: Query<(&mut TextureRect, &CameraSide)>,
+    mut walls: Query<(&mut Transform, &CameraSide)>,
 ) {
     for e in input.iter() {
         if e.state != ButtonState::Pressed {
