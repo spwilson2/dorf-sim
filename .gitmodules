@@ -4,3 +4,6 @@
 [submodule "crates/bevy"]
 	path = crates/bevy
 	url = https://github.com/bevyengine/bevy
+[submodule "crates/glam-rs"]
+	path = crates/glam-rs
+	url = https://github.com/bitshifter/glam-rs

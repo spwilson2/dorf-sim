@@ -1,13 +1,14 @@
 #![allow(unused_must_use, unused_imports, unused_variables, dead_code)]
 mod script;
 mod terminal;
-mod util;
+pub mod util;
 pub mod prelude {
+    pub use crate::util::*;
     pub use bevy::prelude::*;
 }
 
+use crate::prelude::*;
 use bevy::{app::ScheduleRunnerSettings, utils::Duration};
-use prelude::*;
 
 fn configure_logging() {
     use log::LevelFilter;
@@ -17,7 +18,7 @@ fn configure_logging() {
 
     let logfile = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new(
-            "{d(%Y-%m-%d %H:%M:%S %Z)(utc)} | {l:<6.6}| {f}:{L} | {m}{n}",
+            "{d(%Y-%m-%d %H:%M:%S %Z)(local)} | {l:<6.6}| {f}:{L} | {m}{n}",
         )))
         .build(".log/output.log")
         .unwrap();
@@ -34,6 +35,7 @@ fn configure_logging() {
 pub fn app_main() {
     configure_logging();
 
+    log::info!("Initializing App");
     App::new()
         .insert_resource(ScheduleRunnerSettings::run_loop(Duration::from_secs_f64(
             1.0 / 60.0,
@@ -42,5 +44,5 @@ pub fn app_main() {
         .add_plugin(terminal::TerminalPlugin::default())
         .add_plugin(script::ScriptPlugin::default())
         .run();
-    log::info!("exited app");
+    log::info!("Exited app");
 }

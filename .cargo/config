@@ -1,0 +1,9 @@
+#[source.crates-io]
+#replace-with = "vendored-sources"
+#
+#[source.vendored-sources]
+#directory = "vendor"
+
+[patch.crates-io]
+glam = { path = "crates/glam-rs" }
+bevy = { path = "crates/bevy", version = "0.10.1"}

@@ -4,4 +4,7 @@ members = [
     "dorf-lib",
     "dorf-sim",
 ]
-exclude = ["crates/bevy"]
+exclude = [
+"crates/bevy",
+"crates/glam-rs",
+]

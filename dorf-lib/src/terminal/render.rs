@@ -7,7 +7,7 @@ use bevy::math::Vec3Swizzles;
 
 /// This plugin is responsible for providing Components which can be rendered down onto a terminal screen and then painted.
 /// Render logic is super simple: The TransformTexture with the highest z value will be painted.
-use crate::prelude::*;
+use crate::{prelude::*, util::rect2d::Rect2D};
 
 use super::{
     camera::TerminalCamera2d,
@@ -17,20 +17,13 @@ use super::{
 #[derive(Bundle, Clone)]
 pub struct CharTextureTransform {
     texture: CharTexture,
-    transform: Transform,
+    transform: Transform2D,
 }
 
 /// Simple texture on top of transform
 #[derive(Component, Clone)]
 pub struct CharTexture {
     pub texture: char,
-}
-
-#[derive(Debug, Component, Clone)]
-pub struct Transform {
-    pub scale: Vec2,
-    pub loc: Vec2,
-    pub z_lvl: i32,
 }
 
 #[derive(Default)]
@@ -82,8 +75,8 @@ fn normalized_point_to_tile(point: Vec2, width: u16, height: u16) -> (u16, u16) 
 
 fn render(
     mut cache: Local<RenderCache>,
-    changed: Query<(&CharTexture, &Transform), Changed<Transform>>,
-    query: Query<(&CharTexture, &Transform)>,
+    changed: Query<(&CharTexture, &Transform2D), Changed<Transform2D>>,
+    query: Query<(&CharTexture, &Transform2D)>,
     camera: ResMut<TerminalCamera2d>,
     mut display_buf: ResMut<TerminalDisplayBuffer>,
 ) {
@@ -92,13 +85,16 @@ fn render(
     }
     let buf_width = display_buf.0.width;
     let buf_height = display_buf.0.height;
-    if camera.settings_ref().autoresize() {
-        camera.dim().x = buf_width as f32;
-        camera.dim().y = buf_height as f32;
+    if camera.settings().autoresize() {
+        // FIXME?Maybe todo? Not sure if old impl was actually broken.
+        //camera.set_dim(UVec2::new(buf_width as u32, buf_height as u32));
+
+        // camera.dim().x = buf_width as u32;
+        // camera.dim().y = buf_height as u32;
     }
 
     // Get bounds/dimensions to paint, we won't need to pain anything outside bounds.
-    let camera_rec = Rect::from_center_size(camera.loc().xy(), camera.dim());
+    let camera_rec = Rect2D::from_transform2d(&camera.transform);
 
     cache.sort_cache.clear();
     cache.sort_cache.extend(
@@ -109,9 +105,12 @@ fn render(
                 transform: transform.clone(),
             }),
     );
-    cache
-        .sort_cache
-        .sort_by(|l, r| r.transform.z_lvl.partial_cmp(&l.transform.z_lvl).unwrap());
+    cache.sort_cache.sort_by(|l, r| {
+        r.transform
+            .z_lvl()
+            .partial_cmp(&l.transform.z_lvl())
+            .unwrap()
+    });
 
     // Start by clearing the frame buffer, render will completely fill it.
     display_buf.0.buf.clear();
@@ -132,41 +131,23 @@ fn render(
     // (Obviously this is the naive and super inefficient way to do this, but I don't know anything about SIMD/GPU optimizations for layering textures...)
     for text_transform in cache.sort_cache.iter() {
         // Iterate through all textures,
-        let overlap = camera_rec.intersect(Rect::from_center_size(
-            text_transform.transform.loc,
-            text_transform.transform.scale,
-        ));
+        let overlap = camera_rec.intersect(Rect2D::from_transform2d(&text_transform.transform));
         if overlap.is_empty() {
             continue;
         }
-        // Check the zdepth for all tiles
-        //let start_x = overlap.min.x - camera_rec.min.x;
-        //let end_x = overlap.max.x - camera_rec.max.x;
-        //let start_y = overlap.max.y - camera_rec.max.y;
-        //let end_y = overlap.min.y - camera_rec.min.y;
 
-        // If not autosize, but stretch, the camera dimensions we will normalize onto
-        // the RenderCache, and then finalize by writing to the
-        // TerminalDisplayBuffer.
         let start_x;
         let start_y;
         let end_x;
         let end_y;
-        if camera.settings_ref().stretch() {
-            let norm_min = normalize_point(overlap.min, camera_rec.max, camera_rec.min);
-            let norm_max = normalize_point(overlap.max, camera_rec.max, camera_rec.min);
-            (start_x, start_y) = normalized_point_to_tile(norm_min, buf_width, buf_height);
-            (end_x, end_y) = normalized_point_to_tile(norm_max, buf_width, buf_height);
-        } else {
-            let tile_min = overlap.min - camera_rec.min;
-            let tile_max = overlap.max - camera_rec.min;
-            (start_x, start_y) = (tile_min.x as u16, tile_min.y as u16);
-            //  Cap them to the buffer size.
-            (end_x, end_y) = (
-                min(tile_max.x as u16, buf_width),
-                min(tile_max.y as u16, buf_height),
-            );
-        }
+        let tile_min = overlap.min - camera_rec.min;
+        let tile_max = overlap.max - camera_rec.min;
+        (start_x, start_y) = (tile_min.x as u16, tile_min.y as u16);
+        //  Cap them to the buffer size.
+        (end_x, end_y) = (
+            min(tile_max.x as u16, buf_width),
+            min(tile_max.y as u16, buf_height),
+        );
 
         // Iterate through the sections that we're actually updating
         for row in start_y..end_y {
