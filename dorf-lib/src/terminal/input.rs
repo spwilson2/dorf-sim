@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use bevy::input::keyboard::KeyCode as BevyKeyCode;
-use bevy::input::keyboard::{KeyboardInput};
+use bevy::input::keyboard::KeyboardInput;
 use bevy::input::ButtonState;
 use crossterm::event::KeyCode;
 use once_cell::sync::Lazy;
@@ -84,7 +84,7 @@ fn handle_input_buffer(
             key_code: terminal_keycode_to_bevy(&event.code),
             state: ButtonState::Pressed,
         };
-        events.push(res.clone());
+        events.push(res);
         res.state = ButtonState::Released;
         events.push(res);
     }
