@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     prelude::*,
     terminal::{
@@ -15,10 +17,14 @@ pub struct ScriptPlugin();
 
 impl Plugin for ScriptPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(handle_camera_movement_keys)
+        app.insert_resource(CollisionGridCache::new(UVec2 { x: 640, y: 640 }))
+            .add_system(handle_camera_movement_keys)
             .add_system(handle_camera_resized)
             .add_system(system_assign_optimal_path)
             .add_system(system_move_on_optimal_path)
+            .add_system(sys_update_collision_cache)
+            .add_system(sys_handle_collisions)
+            .add_startup_system(spawn_collider_walls)
             .add_startup_system(spawn_mv_player)
             .add_startup_system(spawn_textures);
     }
@@ -34,12 +40,139 @@ struct GoalLoc(Vec2);
 #[derive(Component)]
 struct Speed(f32);
 
+#[derive(Debug)]
+struct Grid2D<T> {
+    data: Vec<T>,
+    size: UVec2,
+}
+
+impl<T: Clone> Grid2D<T> {
+    fn new(size: UVec2, fill: T) -> Self {
+        Self {
+            data: vec![fill; (size.x * size.y) as usize],
+            size,
+        }
+    }
+}
+impl<T> Grid2D<T> {
+    /// Panics if point out of range
+    #[inline]
+    fn get(&self, point: UVec2) -> &T {
+        let idx = self.idx_for_point(point);
+        &self.data[idx]
+    }
+    #[inline]
+    fn idx_for_point(&self, point: UVec2) -> usize {
+        (point.y * self.size.x + point.y) as usize
+    }
+    /// Panics if point out of range
+    #[inline]
+    fn set_idx(&mut self, idx: usize, entity: T) {
+        self.data[idx] = entity;
+    }
+    /// Panics if point out of range
+    #[inline]
+    fn set(&mut self, point: UVec2, entity: T) {
+        let idx = self.idx_for_point(point);
+        self.data[idx] = entity;
+    }
+}
+
+//#[derive(Debug, Default, PartialEq)]
+//struct UVec2 {
+//    x: u32,
+//    y: u32,
+//}
+
+#[derive(Resource, Debug)]
+struct CollisionGridCache {
+    grid: Grid2D<Option<Entity>>,
+    entities: HashMap<Entity, Transform>,
+}
+
+fn for_points_on_transform<F>(transform: &Transform, mut f: F)
+where
+    F: FnMut(UVec2),
+{
+    let rect = Rect::from_center_size(transform.loc, transform.scale);
+    for x in (rect.min.x as u32)..(rect.max.x as u32) {
+        for y in (rect.min.y as u32)..(rect.max.y as u32) {
+            f(UVec2 { x, y })
+        }
+    }
+}
+
+impl CollisionGridCache {
+    fn new(size: UVec2) -> Self {
+        Self {
+            grid: Grid2D::new(size, None),
+            entities: default(),
+        }
+    }
+    #[inline]
+    fn move_entity(&mut self, transform: &Transform, entity: Entity) {
+        // Note: Works on the assumption that there may only be a single
+        // collidable on a given point.
+        if let Some(old_transform) = self.entities.insert(entity, transform.clone()) {
+            for_points_on_transform(&old_transform, |point| self.grid.set(point, None))
+        }
+        for_points_on_transform(transform, move |point| self.grid.set(point, Some(entity)))
+    }
+    #[inline]
+    fn clear(&mut self) {}
+}
+
+//impl From<Vec2> for UVec2 {
+//    fn from(vec2: Vec2) -> Self {
+//        Self {
+//            x: vec2.x as u32,
+//            y: vec2.y as u32,
+//        }
+//    }
+//}
+
+/// Simple tag Component indicating an entity is collidable
+#[derive(Component, Debug, Default)]
+struct BoxCollider {}
+
+fn sys_update_collision_cache(
+    mut cache: ResMut<CollisionGridCache>,
+    q: Query<(Entity, &Transform, &BoxCollider), Changed<Transform>>,
+) {
+    for (entity, transform, _collider) in q.iter() {
+        // TODO z_level
+        cache.move_entity(transform, entity);
+    }
+}
+
+fn sys_handle_collisions(
+    cache: Res<CollisionGridCache>,
+    q: Query<(Entity, &Transform, &BoxCollider), Changed<Transform>>,
+) {
+    for (entity, transform, _collider) in q.iter() {
+        // TODO z_level
+        if let Some(existing_entity) = cache.grid.get(UVec2 {
+            x: transform.loc.x as u32,
+            y: transform.loc.y as u32,
+        }) {
+            if *existing_entity != entity {
+                panic!("Overlapping entities")
+            }
+        }
+    }
+}
+
 #[derive(Bundle)]
 struct Player {
     speed: Speed,
     goal: GoalLoc,
     rect: CharTexture,
     transform: Transform,
+    collider: BoxCollider,
+}
+
+fn calculate_optimal_path(collision_cache: CollisionGridCache) -> Vec<UVec2> {
+    todo!()
 }
 
 fn system_assign_optimal_path(mut cmd: Commands, q: Query<(Entity, &GoalLoc)>) {
@@ -94,10 +227,30 @@ fn spawn_mv_player(mut cmd: Commands) {
         goal: GoalLoc(Vec2::new(10.0, 10.0)),
         rect: CharTexture { texture: 'p' },
         transform: Transform {
-            size: Vec2::new(1.0, 1.0),
+            scale: Vec2::new(1.0, 1.0),
             loc: Vec2::new(0.0, 0.0),
             z_lvl: 2,
         },
+        collider: default(),
+    });
+}
+
+#[derive(Bundle)]
+struct ColliderWall {
+    texture: CharTexture,
+    transform: Transform,
+    collider: BoxCollider,
+}
+
+fn spawn_collider_walls(mut cmd: Commands) {
+    cmd.spawn(ColliderWall {
+        texture: CharTexture { texture: '-' },
+        transform: Transform {
+            scale: Vec2 { x: 1.0, y: 4.0 },
+            loc: Vec2 { x: 4.0, y: 4.0 },
+            z_lvl: 2,
+        },
+        collider: default(),
     });
 }
 /// - Create a player with a random intended path
@@ -116,20 +269,20 @@ fn spawn_mv_player(mut cmd: Commands) {
 fn spawn_textures(mut cmd: Commands) {
     let vert_wall = CharTexture { texture: '-' };
     let vert_wall_trans = Transform {
-        size: Vec2::new(1.0, 2.0),
+        scale: Vec2::new(1.0, 2.0),
         loc: Vec2::new(0.0, 0.0),
         z_lvl: 1000,
     };
     let side_wall = CharTexture { texture: '|' };
     let side_wall_trans = Transform {
-        size: Vec2::new(2.0, 1.0),
+        scale: Vec2::new(2.0, 1.0),
         loc: Vec2::new(0.0, 0.0),
         z_lvl: 1000,
     };
     cmd.spawn((
         CharTexture { texture: 'a' },
         Transform {
-            size: Vec2::new(1.0, 1.0),
+            scale: Vec2::new(1.0, 1.0),
             loc: Vec2::new(0.0, 0.0),
             z_lvl: 1,
         },
@@ -196,26 +349,26 @@ fn center_camera_frame(
             CameraSide::Left => {
                 wall.0.loc.x = -camera.dim().x / 2.0 + 1.0 + camera.loc().x;
                 wall.0.loc.y = camera.loc().y;
-                wall.0.size.x = 1.0;
-                wall.0.size.y = camera.dim().y;
+                wall.0.scale.x = 1.0;
+                wall.0.scale.y = camera.dim().y;
             }
             CameraSide::Right => {
                 wall.0.loc.x = camera.dim().x / 2.0 + camera.loc().x;
                 wall.0.loc.y = camera.loc().y;
-                wall.0.size.x = 1.0;
-                wall.0.size.y = camera.dim().y;
+                wall.0.scale.x = 1.0;
+                wall.0.scale.y = camera.dim().y;
             }
             CameraSide::Top => {
                 wall.0.loc.x = camera.loc().x;
                 wall.0.loc.y = -camera.dim().y / 2.0 + 1.0 + camera.loc().y;
-                wall.0.size.x = camera.dim().x;
-                wall.0.size.y = 1.0;
+                wall.0.scale.x = camera.dim().x;
+                wall.0.scale.y = 1.0;
             }
             CameraSide::Bottom => {
                 wall.0.loc.x = camera.loc().x;
                 wall.0.loc.y = camera.dim().y / 2.0 + camera.loc().y;
-                wall.0.size.x = camera.dim().x;
-                wall.0.size.y = 1.0;
+                wall.0.scale.x = camera.dim().x;
+                wall.0.scale.y = 1.0;
             }
         }
     }

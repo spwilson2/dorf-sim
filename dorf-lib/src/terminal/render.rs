@@ -28,7 +28,7 @@ pub struct CharTexture {
 
 #[derive(Debug, Component, Clone)]
 pub struct Transform {
-    pub size: Vec2,
+    pub scale: Vec2,
     pub loc: Vec2,
     pub z_lvl: i32,
 }
@@ -134,7 +134,7 @@ fn render(
         // Iterate through all textures,
         let overlap = camera_rec.intersect(Rect::from_center_size(
             text_transform.transform.loc,
-            text_transform.transform.size,
+            text_transform.transform.scale,
         ));
         if overlap.is_empty() {
             continue;
