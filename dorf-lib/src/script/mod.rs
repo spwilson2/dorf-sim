@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    cmp::Reverse,
+    collections::{BinaryHeap, HashMap},
+};
 
 use crate::{
     prelude::*,
@@ -9,8 +12,9 @@ use crate::{
     },
 };
 
-use bevy::input::keyboard::KeyboardInput;
 use bevy::input::ButtonState;
+use bevy::{input::keyboard::KeyboardInput, transform};
+use ordered_float::OrderedFloat;
 
 #[derive(Default)]
 pub struct ScriptPlugin();
@@ -156,7 +160,8 @@ fn sys_handle_collisions(
             y: transform.loc.y as u32,
         }) {
             if *existing_entity != entity {
-                panic!("Overlapping entities")
+                log::error!("Panic! Overlapping entities!");
+                panic!("Overlapping entities");
             }
         }
     }
@@ -171,18 +176,140 @@ struct Player {
     collider: BoxCollider,
 }
 
-fn calculate_optimal_path(collision_cache: CollisionGridCache) -> Vec<UVec2> {
-    todo!()
+#[derive(Debug)]
+struct AStar2DSearchState {
+    calculated: HashMap<IVec2, OrderedFloat<f32>>,
+    to_explore: BinaryHeap<Reverse<FunctionalTuple>>,
 }
 
-fn system_assign_optimal_path(mut cmd: Commands, q: Query<(Entity, &GoalLoc)>) {
-    for (entity, goal) in q.iter() {
+#[derive(PartialEq, Debug)]
+struct FunctionalTuple(OrderedFloat<f32>, IVec2);
+
+impl Eq for FunctionalTuple {}
+impl Ord for FunctionalTuple {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+impl PartialOrd for FunctionalTuple {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+impl AStar2DSearchState {
+    fn new(start_node: IVec2) -> Self {
+        let mut s = Self {
+            calculated: default(),
+            to_explore: default(),
+        };
+        s.calculated.insert(start_node, 0.0.into());
+        s
+    }
+    #[inline]
+    fn calc_heuristic_of_point(node: Vec2, goal: &Vec2) -> f32 {
+        goal.distance(node)
+    }
+    #[inline]
+    fn explore_point(&mut self, point: IVec2, goal: &Vec2, cost: f32) {
+        if !self.calculated.contains_key(&point) {
+            let functional =
+                AStar2DSearchState::calc_heuristic_of_point(point.as_vec2(), goal) + cost;
+            self.calculated.insert(point, cost.into());
+            self.to_explore
+                .push(Reverse(FunctionalTuple(functional.into(), point)));
+        }
+    }
+    fn explore_neighbors(&mut self, node: IVec2, goal: &Vec2, cost: f32) {
+        let left = IVec2 { x: -1, y: 0 } + node;
+        let right = IVec2 { x: 1, y: 0 } + node;
+        let up = IVec2 { x: 0, y: 1 } + node;
+        let down = IVec2 { x: 0, y: -1 } + node;
+        let upleft = IVec2 { x: -1, y: 1 } + node;
+        let upright = IVec2 { x: 1, y: 1 } + node;
+        let downleft = IVec2 { x: -1, y: -1 } + node;
+        let downright = IVec2 { x: 1, y: -1 } + node;
+        // Note: Could speed up even more by only exploring in direction?
+        self.explore_point(left, goal, 1.0 + cost);
+        self.explore_point(right, goal, 1.0 + cost);
+        self.explore_point(up, goal, 1.0 + cost);
+        self.explore_point(down, goal, 1.0 + cost);
+        //self.explore_point(upleft, goal, 1.0 + cost);
+        //self.explore_point(upright, goal, 1.0 + cost);
+        //self.explore_point(downleft, goal, 1.0 + cost);
+        //self.explore_point(downright, goal, 1.0 + cost);
+    }
+    fn cheapest_neighbor(&mut self, node: IVec2) -> IVec2 {
+        let left = IVec2 { x: -1, y: 0 } + node;
+        let right = IVec2 { x: 1, y: 0 } + node;
+        let up = IVec2 { x: 0, y: 1 } + node;
+        let down = IVec2 { x: 0, y: -1 } + node;
+
+        let mut neighbors = [
+            (FunctionalTuple(*self.calculated.get(&up).unwrap_or(&f32::MAX.into()), up)),
+            (FunctionalTuple(
+                *self.calculated.get(&down).unwrap_or(&f32::MAX.into()),
+                down,
+            )),
+            (FunctionalTuple(
+                *self.calculated.get(&right).unwrap_or(&f32::MAX.into()),
+                right,
+            )),
+            (FunctionalTuple(
+                *self.calculated.get(&left).unwrap_or(&f32::MAX.into()),
+                left,
+            )),
+        ];
+        neighbors.sort();
+        neighbors.first().unwrap().1
+    }
+
+    fn select_next_node(&mut self) -> Option<(f32, IVec2)> {
+        self.to_explore
+            .pop()
+            .and_then(|h| Some((self.calculated.get(&h.0 .1).unwrap().0, h.0 .1)))
+    }
+}
+fn calc_optimal_path(col_cache: &CollisionGridCache, start: Vec2, goal: Vec2) -> Option<Vec<Vec2>> {
+    // TODO: A*
+
+    // TODO: Start at first node, find next best node towards goal
+    let mut state = AStar2DSearchState::new(start.as_ivec2());
+    let mut cur_node = start.as_ivec2();
+    let mut cost = 0.0;
+    loop {
+        // Collect costs for all neighbors
+        state.explore_neighbors(cur_node, &goal, cost);
+        // Select the next best node to explore, save the actual value
+        (cost, cur_node) = state.select_next_node()?;
+        if cur_node == goal.as_ivec2() {
+            break;
+        }
+    }
+    let mut path = Vec::new();
+    let mut next = goal.as_ivec2();
+    loop {
+        next = state.cheapest_neighbor(next);
+        path.push(next.as_vec2());
+        if next == start.as_ivec2() {
+            break;
+        }
+    }
+    Some(path)
+}
+
+fn system_assign_optimal_path(
+    mut cmd: Commands,
+    col_cache: Res<CollisionGridCache>,
+    q: Query<(Entity, &Transform, &GoalLoc)>,
+) {
+    for (entity, transform, goal) in q.iter() {
         // TODO: Calculate optimal path, for now will work since nothing to
         // colldie with. Will need to figure out how to do efficient collision
         // detec later.
+        let path = calc_optimal_path(&*col_cache, transform.loc, goal.0);
         cmd.entity(entity)
             .insert(MovePath {
-                steps: vec![goal.0],
+                steps: path.unwrap(), // TODO: Handle inability to path.
             })
             .remove::<GoalLoc>();
     }
