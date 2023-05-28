@@ -12,8 +12,8 @@ use crate::{
     },
 };
 
-use bevy::input::ButtonState;
 use bevy::{input::keyboard::KeyboardInput, transform};
+use bevy::{input::ButtonState, utils::Uuid};
 use ordered_float::OrderedFloat;
 
 #[derive(Default)]
@@ -21,7 +21,7 @@ pub struct ScriptPlugin();
 
 impl Plugin for ScriptPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(CollisionGridCache::new(Vec2 { x: 640.0, y: 640.0 }))
+        app.insert_resource(CollisionGridCache::new(IVec2 { x: 640, y: 640 }))
             .add_system(handle_camera_movement_keys)
             .add_system(handle_camera_resized)
             .add_system(system_assign_optimal_path)
@@ -47,11 +47,11 @@ struct Speed(f32);
 #[derive(Debug)]
 struct Grid2D<T> {
     data: Vec<T>,
-    size: Vec2,
+    size: IVec2,
 }
 
 impl<T: Clone> Grid2D<T> {
-    fn new(size: Vec2, fill: T) -> Self {
+    fn new(size: IVec2, fill: T) -> Self {
         Self {
             data: vec![fill; (size.x * size.y) as usize],
             size,
@@ -61,13 +61,13 @@ impl<T: Clone> Grid2D<T> {
 impl<T> Grid2D<T> {
     /// Panics if point out of range
     #[inline]
-    fn get(&self, point: Vec2) -> &T {
+    fn get(&self, point: IVec2) -> &T {
         let idx = self.idx_for_point(point);
         &self.data[idx]
     }
     #[inline]
-    fn idx_for_point(&self, point: Vec2) -> usize {
-        (point.y * self.size.x + point.x) as usize
+    fn idx_for_point(&self, point: IVec2) -> usize {
+        (point.y * self.size.x as i32 + point.x) as usize
     }
     /// Panics if point out of range
     #[inline]
@@ -76,7 +76,7 @@ impl<T> Grid2D<T> {
     }
     /// Panics if point out of range
     #[inline]
-    fn set(&mut self, point: Vec2, entity: T) {
+    fn set(&mut self, point: IVec2, entity: T) {
         let idx = self.idx_for_point(point);
         self.data[idx] = entity;
     }
@@ -90,40 +90,37 @@ impl<T> Grid2D<T> {
 
 #[derive(Resource, Debug)]
 struct CollisionGridCache {
-    grid: Grid2D<Option<Entity>>,
-    entities: HashMap<Entity, Transform>,
+    grid: Grid2D<Option<Uuid>>,
+    entities: HashMap<Uuid, Transform>,
 }
 
 fn for_points_on_transform<F>(transform: &Transform, mut f: F)
 where
-    F: FnMut(Vec2),
+    F: FnMut(IVec2),
 {
     let rect = Rect::from_corners(transform.loc, transform.loc + transform.scale);
     for x in (rect.min.x as i32)..(rect.max.x as i32) {
         for y in (rect.min.y as i32)..(rect.max.y as i32) {
-            f(Vec2 {
-                x: x as f32,
-                y: y as f32,
-            })
+            f(IVec2 { x: x, y: y })
         }
     }
 }
 
 impl CollisionGridCache {
-    fn new(size: Vec2) -> Self {
+    fn new(size: IVec2) -> Self {
         Self {
             grid: Grid2D::new(size, None),
             entities: default(),
         }
     }
     #[inline]
-    fn move_entity(&mut self, transform: &Transform, entity: Entity) {
+    fn move_entity(&mut self, transform: &Transform, uuid: Uuid) {
         // Note: Works on the assumption that there may only be a single
         // collidable on a given point.
-        if let Some(old_transform) = self.entities.insert(entity, transform.clone()) {
+        if let Some(old_transform) = self.entities.insert(uuid, transform.clone()) {
             for_points_on_transform(&old_transform, |point| self.grid.set(point, None))
         }
-        for_points_on_transform(transform, move |point| self.grid.set(point, Some(entity)))
+        for_points_on_transform(transform, move |point| self.grid.set(point, Some(uuid)))
     }
     #[inline]
     fn clear(&mut self) {}
@@ -139,30 +136,41 @@ impl CollisionGridCache {
 //}
 
 /// Simple tag Component indicating an entity is collidable
-#[derive(Component, Debug, Default)]
-struct BoxCollider {}
+#[derive(Component, Debug)]
+struct BoxCollider {
+    uuid: Uuid,
+}
+
+impl Default for BoxCollider {
+    fn default() -> Self {
+        Self {
+            uuid: bevy::utils::Uuid::new_v4(),
+        }
+    }
+}
 
 fn sys_update_collision_cache(
     mut cache: ResMut<CollisionGridCache>,
-    q: Query<(Entity, &Transform, &BoxCollider), Changed<Transform>>,
+    q: Query<(&Transform, &BoxCollider), Changed<Transform>>,
 ) {
-    for (entity, transform, _collider) in q.iter() {
+    for (transform, collider) in q.iter() {
+        log::info!("Moving {:?}", collider.uuid);
         // TODO z_level
-        cache.move_entity(transform, entity);
+        cache.move_entity(transform, collider.uuid);
     }
 }
 
 fn sys_handle_collisions(
     cache: Res<CollisionGridCache>,
-    q: Query<(Entity, &Transform, &BoxCollider), Changed<Transform>>,
+    q: Query<(&Transform, &BoxCollider), Changed<Transform>>,
 ) {
-    for (entity, transform, _collider) in q.iter() {
+    for (transform, collider) in q.iter() {
         // TODO z_level
-        if let Some(existing_entity) = cache.grid.get(Vec2 {
-            x: transform.loc.x,
-            y: transform.loc.y,
+        if let Some(existing_uuid) = cache.grid.get(IVec2 {
+            x: transform.loc.x as i32,
+            y: transform.loc.y as i32,
         }) {
-            if *existing_entity != entity {
+            if *existing_uuid != collider.uuid {
                 log::error!("Panic! Overlapping entities! {:?}", transform);
                 panic!("Overlapping entities");
             }
