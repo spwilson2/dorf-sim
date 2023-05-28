@@ -98,7 +98,7 @@ fn render(
     }
 
     // Get bounds/dimensions to paint, we won't need to pain anything outside bounds.
-    let camera_rec = Rect::from_center_size(camera.loc().xy(), camera.dim());
+    let camera_rec = Rect::from_corners(camera.loc().xy(), camera.loc().xy() + camera.dim());
 
     cache.sort_cache.clear();
     cache.sort_cache.extend(
@@ -132,9 +132,9 @@ fn render(
     // (Obviously this is the naive and super inefficient way to do this, but I don't know anything about SIMD/GPU optimizations for layering textures...)
     for text_transform in cache.sort_cache.iter() {
         // Iterate through all textures,
-        let overlap = camera_rec.intersect(Rect::from_center_size(
+        let overlap = camera_rec.intersect(Rect::from_corners(
             text_transform.transform.loc,
-            text_transform.transform.scale,
+            text_transform.transform.loc + text_transform.transform.scale,
         ));
         if overlap.is_empty() {
             continue;

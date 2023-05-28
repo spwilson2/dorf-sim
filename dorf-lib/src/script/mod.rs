@@ -21,7 +21,7 @@ pub struct ScriptPlugin();
 
 impl Plugin for ScriptPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(CollisionGridCache::new(UVec2 { x: 640, y: 640 }))
+        app.insert_resource(CollisionGridCache::new(Vec2 { x: 640.0, y: 640.0 }))
             .add_system(handle_camera_movement_keys)
             .add_system(handle_camera_resized)
             .add_system(system_assign_optimal_path)
@@ -47,11 +47,11 @@ struct Speed(f32);
 #[derive(Debug)]
 struct Grid2D<T> {
     data: Vec<T>,
-    size: UVec2,
+    size: Vec2,
 }
 
 impl<T: Clone> Grid2D<T> {
-    fn new(size: UVec2, fill: T) -> Self {
+    fn new(size: Vec2, fill: T) -> Self {
         Self {
             data: vec![fill; (size.x * size.y) as usize],
             size,
@@ -61,13 +61,13 @@ impl<T: Clone> Grid2D<T> {
 impl<T> Grid2D<T> {
     /// Panics if point out of range
     #[inline]
-    fn get(&self, point: UVec2) -> &T {
+    fn get(&self, point: Vec2) -> &T {
         let idx = self.idx_for_point(point);
         &self.data[idx]
     }
     #[inline]
-    fn idx_for_point(&self, point: UVec2) -> usize {
-        (point.y * self.size.x + point.y) as usize
+    fn idx_for_point(&self, point: Vec2) -> usize {
+        (point.y * self.size.x + point.x) as usize
     }
     /// Panics if point out of range
     #[inline]
@@ -76,7 +76,7 @@ impl<T> Grid2D<T> {
     }
     /// Panics if point out of range
     #[inline]
-    fn set(&mut self, point: UVec2, entity: T) {
+    fn set(&mut self, point: Vec2, entity: T) {
         let idx = self.idx_for_point(point);
         self.data[idx] = entity;
     }
@@ -96,18 +96,21 @@ struct CollisionGridCache {
 
 fn for_points_on_transform<F>(transform: &Transform, mut f: F)
 where
-    F: FnMut(UVec2),
+    F: FnMut(Vec2),
 {
-    let rect = Rect::from_center_size(transform.loc, transform.scale);
-    for x in (rect.min.x as u32)..(rect.max.x as u32) {
-        for y in (rect.min.y as u32)..(rect.max.y as u32) {
-            f(UVec2 { x, y })
+    let rect = Rect::from_corners(transform.loc, transform.loc + transform.scale);
+    for x in (rect.min.x as i32)..(rect.max.x as i32) {
+        for y in (rect.min.y as i32)..(rect.max.y as i32) {
+            f(Vec2 {
+                x: x as f32,
+                y: y as f32,
+            })
         }
     }
 }
 
 impl CollisionGridCache {
-    fn new(size: UVec2) -> Self {
+    fn new(size: Vec2) -> Self {
         Self {
             grid: Grid2D::new(size, None),
             entities: default(),
@@ -155,12 +158,12 @@ fn sys_handle_collisions(
 ) {
     for (entity, transform, _collider) in q.iter() {
         // TODO z_level
-        if let Some(existing_entity) = cache.grid.get(UVec2 {
-            x: transform.loc.x as u32,
-            y: transform.loc.y as u32,
+        if let Some(existing_entity) = cache.grid.get(Vec2 {
+            x: transform.loc.x,
+            y: transform.loc.y,
         }) {
             if *existing_entity != entity {
-                log::error!("Panic! Overlapping entities!");
+                log::error!("Panic! Overlapping entities! {:?}", transform);
                 panic!("Overlapping entities");
             }
         }
@@ -210,7 +213,13 @@ impl AStar2DSearchState {
         goal.distance(node)
     }
     #[inline]
-    fn explore_point(&mut self, point: IVec2, goal: &Vec2, cost: f32) {
+    fn explore_point(
+        &mut self,
+        point: IVec2,
+        goal: &Vec2,
+        cost: f32,
+        col_cache: &CollisionGridCache,
+    ) {
         if !self.calculated.contains_key(&point) {
             let functional =
                 AStar2DSearchState::calc_heuristic_of_point(point.as_vec2(), goal) + cost;
@@ -219,7 +228,13 @@ impl AStar2DSearchState {
                 .push(Reverse(FunctionalTuple(functional.into(), point)));
         }
     }
-    fn explore_neighbors(&mut self, node: IVec2, goal: &Vec2, cost: f32) {
+    fn explore_neighbors(
+        &mut self,
+        node: IVec2,
+        goal: &Vec2,
+        cost: f32,
+        col_cache: &CollisionGridCache,
+    ) {
         let left = IVec2 { x: -1, y: 0 } + node;
         let right = IVec2 { x: 1, y: 0 } + node;
         let up = IVec2 { x: 0, y: 1 } + node;
@@ -229,14 +244,14 @@ impl AStar2DSearchState {
         let downleft = IVec2 { x: -1, y: -1 } + node;
         let downright = IVec2 { x: 1, y: -1 } + node;
         // Note: Could speed up even more by only exploring in direction?
-        self.explore_point(left, goal, 1.0 + cost);
-        self.explore_point(right, goal, 1.0 + cost);
-        self.explore_point(up, goal, 1.0 + cost);
-        self.explore_point(down, goal, 1.0 + cost);
-        //self.explore_point(upleft, goal, 1.0 + cost);
-        //self.explore_point(upright, goal, 1.0 + cost);
-        //self.explore_point(downleft, goal, 1.0 + cost);
-        //self.explore_point(downright, goal, 1.0 + cost);
+        self.explore_point(left, goal, 1.0 + cost, col_cache);
+        self.explore_point(right, goal, 1.0 + cost, col_cache);
+        self.explore_point(up, goal, 1.0 + cost, col_cache);
+        self.explore_point(down, goal, 1.0 + cost, col_cache);
+        self.explore_point(upleft, goal, 1.0 + cost, col_cache);
+        self.explore_point(upright, goal, 1.0 + cost, col_cache);
+        self.explore_point(downleft, goal, 1.0 + cost, col_cache);
+        self.explore_point(downright, goal, 1.0 + cost, col_cache);
     }
     fn cheapest_neighbor(&mut self, node: IVec2) -> IVec2 {
         let left = IVec2 { x: -1, y: 0 } + node;
@@ -278,7 +293,7 @@ fn calc_optimal_path(col_cache: &CollisionGridCache, start: Vec2, goal: Vec2) ->
     let mut cost = 0.0;
     loop {
         // Collect costs for all neighbors
-        state.explore_neighbors(cur_node, &goal, cost);
+        state.explore_neighbors(cur_node, &goal, cost, col_cache);
         // Select the next best node to explore, save the actual value
         (cost, cur_node) = state.select_next_node()?;
         if cur_node == goal.as_ivec2() {
@@ -371,11 +386,38 @@ struct ColliderWall {
 
 fn spawn_collider_walls(mut cmd: Commands) {
     cmd.spawn(ColliderWall {
+        texture: CharTexture { texture: 'x' },
+        transform: Transform {
+            scale: Vec2 { x: 1.0, y: 1.0 },
+            loc: Vec2 { x: 0.0, y: 0.0 },
+            z_lvl: 1,
+        },
+        collider: default(),
+    });
+    cmd.spawn(ColliderWall {
+        texture: CharTexture { texture: 'x' },
+        transform: Transform {
+            scale: Vec2 { x: 1.0, y: 5.0 },
+            loc: Vec2 { x: 1.0, y: 0.0 },
+            z_lvl: 1,
+        },
+        collider: default(),
+    });
+    cmd.spawn(ColliderWall {
+        texture: CharTexture { texture: 'x' },
+        transform: Transform {
+            scale: Vec2 { x: 1.0, y: 5.0 },
+            loc: Vec2 { x: 1.0, y: 0.0 },
+            z_lvl: 1,
+        },
+        collider: default(),
+    });
+    cmd.spawn(ColliderWall {
         texture: CharTexture { texture: '-' },
         transform: Transform {
-            scale: Vec2 { x: 1.0, y: 4.0 },
-            loc: Vec2 { x: 4.0, y: 4.0 },
-            z_lvl: 2,
+            scale: Vec2 { x: 2.0, y: 4.0 },
+            loc: Vec2 { x: 5.0, y: 4.0 },
+            z_lvl: 1,
         },
         collider: default(),
     });
@@ -396,13 +438,13 @@ fn spawn_collider_walls(mut cmd: Commands) {
 fn spawn_textures(mut cmd: Commands) {
     let vert_wall = CharTexture { texture: '-' };
     let vert_wall_trans = Transform {
-        scale: Vec2::new(1.0, 2.0),
+        scale: Vec2::new(1.0, 1.0),
         loc: Vec2::new(0.0, 0.0),
         z_lvl: 1000,
     };
     let side_wall = CharTexture { texture: '|' };
     let side_wall_trans = Transform {
-        scale: Vec2::new(2.0, 1.0),
+        scale: Vec2::new(1.0, 1.0),
         loc: Vec2::new(0.0, 0.0),
         z_lvl: 1000,
     };
@@ -474,26 +516,26 @@ fn center_camera_frame(
     for mut wall in walls.iter_mut() {
         match *wall.1 {
             CameraSide::Left => {
-                wall.0.loc.x = -camera.dim().x / 2.0 + 1.0 + camera.loc().x;
+                wall.0.loc.x = camera.loc().x;
                 wall.0.loc.y = camera.loc().y;
                 wall.0.scale.x = 1.0;
                 wall.0.scale.y = camera.dim().y;
             }
             CameraSide::Right => {
-                wall.0.loc.x = camera.dim().x / 2.0 + camera.loc().x;
+                wall.0.loc.x = camera.dim().x + camera.loc().x - 1.0;
                 wall.0.loc.y = camera.loc().y;
                 wall.0.scale.x = 1.0;
                 wall.0.scale.y = camera.dim().y;
             }
             CameraSide::Top => {
                 wall.0.loc.x = camera.loc().x;
-                wall.0.loc.y = -camera.dim().y / 2.0 + 1.0 + camera.loc().y;
+                wall.0.loc.y = camera.loc().y;
                 wall.0.scale.x = camera.dim().x;
                 wall.0.scale.y = 1.0;
             }
             CameraSide::Bottom => {
                 wall.0.loc.x = camera.loc().x;
-                wall.0.loc.y = camera.dim().y / 2.0 + camera.loc().y;
+                wall.0.loc.y = camera.dim().y + camera.loc().y - 1.0;
                 wall.0.scale.x = camera.dim().x;
                 wall.0.scale.y = 1.0;
             }
