@@ -35,7 +35,7 @@ impl Plugin for ScriptPlugin {
             )
             .add_system(pathing::sys_handle_collisions)
             .add_startup_system(pathing::spawn_collider_walls)
-            .add_startup_system(pathing::spawn_mv_player)
+            .add_system(pathing::spawn_mv_player_over_time)
             .add_startup_system(spawn_textures);
     }
 }

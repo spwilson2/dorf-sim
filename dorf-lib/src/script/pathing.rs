@@ -39,7 +39,7 @@ pub struct Grid2D<T> {
     rect: Rect2D,
 }
 
-pub const MAP_DIMMENSIONS: UVec2 = UVec2 { x: 250, y: 250 };
+pub const MAP_DIMMENSIONS: UVec2 = UVec2 { x: 100, y: 50 };
 
 impl<T: Clone> Grid2D<T> {
     fn new(topleft: IVec2, size: UVec2, fill: T) -> Self {
@@ -60,6 +60,7 @@ impl<T> Grid2D<T> {
     }
     #[inline]
     fn idx_for_point(&self, point: IVec2) -> Result<usize, LightError> {
+        // TODO: Recenter
         if !self.rect.contains_exclusive_max(point.as_vec2()) {
             return Err(LightError::OutOfBoundsError);
         }
@@ -566,19 +567,21 @@ pub fn system_move_on_optimal_path(
     }
 }
 
-pub(crate) fn spawn_mv_player(mut cmd: Commands) {
-    for i in 0..1000 {
-        cmd.spawn(Player {
-            speed: Speed(5.0),
-            goal: GoalLoc(Some(Vec2::new(3.0, 3.0))),
-            rect: CharTexture { texture: 'p' },
-            transform: Transform2D {
-                scale: UVec2::splat(1),
-                loc: Vec3::ZERO,
-            },
-            collider: default(),
-        });
+pub(crate) fn spawn_mv_player_over_time(mut cmd: Commands, mut cnt: Local<usize>) {
+    if *cnt > 1000 {
+        return;
     }
+    *cnt += 1;
+    cmd.spawn(Player {
+        speed: Speed(5.0),
+        goal: GoalLoc(Some(Vec2::new(0.0, 1.0))),
+        rect: CharTexture { texture: 'p' },
+        transform: Transform2D {
+            scale: UVec2::splat(1),
+            loc: Vec3::ZERO,
+        },
+        collider: default(),
+    });
     //cmd.spawn(Player {
     //    speed: Speed(5.0),
     //    goal: GoalLoc(Some(Vec2::new(1.0, 3.0))),
