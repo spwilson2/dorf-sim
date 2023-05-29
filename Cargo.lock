@@ -954,6 +954,7 @@ dependencies = [
  "ordered-float 3.7.0",
  "shutdown_hooks",
  "signal-hook",
+ "thiserror",
 ]
 
 [[package]]

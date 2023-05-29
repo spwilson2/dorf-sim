@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     prelude::*,
-    script::pathing::{CollisionGridCache, MAP_DIMMENSIONS},
+    script::pathing::{sys_assign_new_goal, CollisionGridCache, MAP_DIMMENSIONS},
     terminal::{
         camera::{CameraResized, TerminalCamera2d},
         render::CharTexture,
@@ -26,6 +26,7 @@ impl Plugin for ScriptPlugin {
         log::info!("Initializing ScriptPlugin");
         app.insert_resource(CollisionGridCache::new(IVec2::default(), MAP_DIMMENSIONS))
             .add_system(handle_camera_movement_keys)
+            .add_system(sys_assign_new_goal)
             .add_system(handle_camera_resized)
             .add_system(pathing::system_move_on_optimal_path)
             .add_system(pathing::sys_update_collision_cache)
