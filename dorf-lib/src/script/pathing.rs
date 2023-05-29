@@ -39,7 +39,7 @@ pub struct Grid2D<T> {
     rect: Rect2D,
 }
 
-pub const MAP_DIMMENSIONS: UVec2 = UVec2 { x: 25, y: 25 };
+pub const MAP_DIMMENSIONS: UVec2 = UVec2 { x: 250, y: 250 };
 
 impl<T: Clone> Grid2D<T> {
     fn new(topleft: IVec2, size: UVec2, fill: T) -> Self {
@@ -271,6 +271,7 @@ struct Player {
 #[derive(Debug)]
 struct AStar2DSearchState<'i> {
     calculated: HashMap<IVec2, OrderedFloat<f32>>,
+    calculated_: Grid2D<Option<OrderedFloat<f32>>>,
     to_explore: BinaryHeap<Reverse<FunctionalTuple>>,
     col_cache: &'i CollisionGridCache,
 }
@@ -294,10 +295,16 @@ impl<'i> AStar2DSearchState<'i> {
     fn new(col_cache: &'i CollisionGridCache, start_node: &Transform2D) -> Self {
         let mut s = Self {
             calculated: default(),
+            calculated_: Grid2D::new(
+                col_cache.grid.rect.min,
+                col_cache.grid.rect.size().as_uvec2(),
+                None,
+            ),
             to_explore: default(),
             col_cache,
         };
-        s.calculated.insert(start_node.as_tile(), 0.0.into());
+        //s.calculated.insert(start_node.as_tile(), 0.0.into());
+        s.calculated_.set(start_node.as_tile(), Some(0.0.into()));
         s
     }
     fn dbg_dump_to_log(&self) {
@@ -353,7 +360,11 @@ impl<'i> AStar2DSearchState<'i> {
     }
     #[inline]
     fn explore_point(&mut self, start: &Transform2D, new_point: IVec2, goal: &Vec2, mut cost: f32) {
-        if !self.calculated.contains_key(&new_point) {
+        //if !self.calculated.contains_key(&new_point) {
+        if let Ok(known) = self.calculated_.get(new_point) {
+            if known.is_some() {
+                return;
+            }
             if self
                 .col_cache
                 .would_collide_if_moved(start, &new_point)
@@ -372,7 +383,8 @@ impl<'i> AStar2DSearchState<'i> {
                     new_point,
                 )));
             }
-            self.calculated.insert(new_point, OrderedFloat(cost));
+            self.calculated_.set(new_point, Some(OrderedFloat(cost)));
+            //self.calculated.insert(new_point, OrderedFloat(cost));
         }
     }
     fn explore_neighbors(&mut self, transform: &Transform2D, goal: &Vec2, cost: f32) {
@@ -402,17 +414,32 @@ impl<'i> AStar2DSearchState<'i> {
         let down = IVec2 { x: 0, y: -1 } + node;
 
         let mut neighbors = [
-            (FunctionalTuple(*self.calculated.get(&up).unwrap_or(&f32::MAX.into()), up)),
             (FunctionalTuple(
-                *self.calculated.get(&down).unwrap_or(&f32::MAX.into()),
+                self.calculated_
+                    .get(up)
+                    .unwrap_or(&Some(f32::MAX.into()))
+                    .unwrap_or(f32::MAX.into()),
+                up,
+            )),
+            (FunctionalTuple(
+                self.calculated_
+                    .get(down)
+                    .unwrap_or(&Some(f32::MAX.into()))
+                    .unwrap_or(f32::MAX.into()),
                 down,
             )),
             (FunctionalTuple(
-                *self.calculated.get(&right).unwrap_or(&f32::MAX.into()),
+                self.calculated_
+                    .get(right)
+                    .unwrap_or(&Some(f32::MAX.into()))
+                    .unwrap_or(f32::MAX.into()),
                 right,
             )),
             (FunctionalTuple(
-                *self.calculated.get(&left).unwrap_or(&f32::MAX.into()),
+                self.calculated_
+                    .get(left)
+                    .unwrap_or(&Some(f32::MAX.into()))
+                    .unwrap_or(f32::MAX.into()),
                 left,
             )),
         ];
@@ -423,7 +450,8 @@ impl<'i> AStar2DSearchState<'i> {
     fn select_next_node(&mut self) -> Option<(f32, IVec2)> {
         self.to_explore
             .pop()
-            .and_then(|h| Some((self.calculated.get(&h.0 .1).unwrap().0, h.0 .1)))
+            //.and_then(|h| Some((self.calculated.get(&h.0 .1).unwrap().0, h.0 .1)))
+            .and_then(|h| Some((self.calculated_.get(h.0 .1).unwrap().unwrap().0, h.0 .1)))
     }
 }
 fn calc_optimal_path(
