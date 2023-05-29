@@ -25,7 +25,7 @@ impl Transform2D {
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum LightError {
     #[error("Out of bounds")]
     OutOfBoundsError,

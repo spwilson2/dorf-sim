@@ -21,8 +21,9 @@ pub struct Rect2D {
 
 #[inline]
 pub fn tile_from_vec2(mut vec2: Vec2) -> IVec2 {
+    // Upper-left
     vec2.x = vec2.x.floor();
-    vec2.y = vec2.y.ceil();
+    vec2.y = vec2.y.floor();
     vec2.as_ivec2()
 }
 
@@ -69,7 +70,7 @@ impl Rect2D {
     #[inline]
     pub fn from_transform2d(transform: &Transform2D) -> Self {
         let p0 = tile_from_vec2(transform.loc.xy());
-        // Shift any remaining size to the lopleft whole number coordinate.
+        // Shift any remaining size to the topleft whole number coordinate.
         Rect2D::from_corners(p0, p0 + transform.scale.as_ivec2())
     }
 

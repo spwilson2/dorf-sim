@@ -52,19 +52,21 @@ impl<T: Clone> Grid2D<T> {
 impl<T> Grid2D<T> {
     #[inline]
     fn get(&self, point: IVec2) -> Result<&T, LightError> {
-        let idx = self.idx_for_point(point);
+        let idx = self.idx_for_point(point)?;
         match self.data.get(idx) {
             Some(t) => Ok(t),
             None => Err(LightError::OutOfBoundsError),
         }
     }
     #[inline]
-    fn idx_for_point(&self, point: IVec2) -> usize {
+    fn idx_for_point(&self, point: IVec2) -> Result<usize, LightError> {
         // TODO: Recenter
-
-        let bot_left = self.rect.min;
+        if !self.rect.contains(point.as_vec2()) {
+            return Err(LightError::OutOfBoundsError);
+        }
+        let top_left = self.rect.min;
         // Distance_y * size_x  + Distance_x
-        ((point.y - bot_left.y) * self.rect.size().x + (point.x - bot_left.x)) as usize
+        Ok(((top_left.y + point.y) * self.rect.size().x + (top_left.x + point.x)) as usize)
     }
     /// Panics if point out of range
     #[inline]
@@ -74,7 +76,7 @@ impl<T> Grid2D<T> {
     /// Panics if point out of range
     #[inline]
     fn set(&mut self, point: IVec2, entity: T) {
-        let idx = self.idx_for_point(point);
+        let idx = self.idx_for_point(point).unwrap();
         self.data[idx] = entity;
     }
 }
@@ -352,20 +354,25 @@ impl<'i> AStar2DSearchState<'i> {
     #[inline]
     fn explore_point(&mut self, start: &Transform2D, new_point: IVec2, goal: &Vec2, mut cost: f32) {
         if !self.calculated.contains_key(&new_point) {
-            let mut functional =
-                AStar2DSearchState::calc_heuristic_of_point(new_point.as_vec2(), goal) + cost;
             if self
                 .col_cache
                 .would_collide_if_moved(start, &new_point)
-                .unwrap_or(true)
-            // If fails to unwrap, then it's because we looked at an out of bounds point.
+                // If fails to unwrap, then it's because we looked at an out-of-bounds point.
+                .unwrap_or_else(|e| {
+                    debug_assert_eq!(e, LightError::OutOfBoundsError);
+                    true
+                })
             {
-                functional = f32::MAX;
-                cost = f32::MAX;
+                cost = f32::NAN;
+            } else {
+                let functional =
+                    AStar2DSearchState::calc_heuristic_of_point(new_point.as_vec2(), goal) + cost;
+                self.to_explore.push(Reverse(FunctionalTuple(
+                    OrderedFloat(functional),
+                    new_point,
+                )));
             }
-            self.calculated.insert(new_point, cost.into());
-            self.to_explore
-                .push(Reverse(FunctionalTuple(functional.into(), new_point)));
+            self.calculated.insert(new_point, OrderedFloat(cost));
         }
     }
     fn explore_neighbors(&mut self, transform: &Transform2D, goal: &Vec2, cost: f32) {
@@ -424,7 +431,9 @@ fn calc_optimal_path(
     start: &Transform2D,
     goal: Vec2,
 ) -> Option<Vec<Vec2>> {
-    // TODO: A*
+    // TODO: Detect unreachable:
+    // Unreachable (easy) if itself is a collider node.
+    // Unreachable if enclosed by explored paths... How do I detect that..
 
     // TODO: Start at first node, find next best node towards goal
     let mut state = AStar2DSearchState::new(col_cache, start);
@@ -478,10 +487,18 @@ pub fn system_assign_optimal_path(
     }
     for (entity, transform, mut goal) in q.iter_mut() {
         if let Some(goal_loc) = goal.0 {
-            let path = calc_optimal_path(&*col_cache, transform, goal_loc);
-            cmd.entity(entity).insert(MovePath {
-                steps: path.unwrap(), // TODO: Handle inability to path.
-            });
+            match calc_optimal_path(&*col_cache, transform, goal_loc) {
+                // Path Found
+                Some(path) => {
+                    cmd.entity(entity).insert(MovePath {
+                        steps: path, // TODO: Handle inability to path.
+                    });
+                }
+                // No path found
+                None => {
+                    cmd.entity(entity).insert(NewGoalNeeded);
+                }
+            }
             goal.0 = None;
         }
     }
@@ -526,7 +543,7 @@ pub fn system_move_on_optimal_path(
 pub(crate) fn spawn_mv_player(mut cmd: Commands) {
     cmd.spawn(Player {
         speed: Speed(5.0),
-        goal: GoalLoc(Some(Vec2::new(1.5, 3.0))),
+        goal: GoalLoc(Some(Vec2::new(3.0, 3.0))),
         rect: CharTexture { texture: 'p' },
         transform: Transform2D {
             scale: UVec2::splat(1),
