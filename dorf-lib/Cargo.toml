@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 bevy = { path = "../crates/bevy", default-features = false, version = "0.10.1"}
+glam = { features = ["fast-math"]}
 crossterm = "0.26.1"
 log = "0.4.17"
 log4rs = "1.2.0"

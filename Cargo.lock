@@ -948,6 +948,7 @@ dependencies = [
  "bevy",
  "crossterm",
  "fastrand",
+ "glam",
  "log",
  "log4rs",
  "once_cell",
