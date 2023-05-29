@@ -340,14 +340,13 @@ impl<'i> AStar2DSearchState<'i> {
         goal.distance(node)
     }
     #[inline]
-    fn explore_point(&mut self, start: &Transform2D, new_point: IVec2, goal: &Vec2, cost: f32) {
+    fn explore_point(&mut self, start: &Transform2D, new_point: IVec2, goal: &Vec2, mut cost: f32) {
         if !self.calculated.contains_key(&new_point) {
-            let functional;
+            let mut functional =
+                AStar2DSearchState::calc_heuristic_of_point(new_point.as_vec2(), goal) + cost;
             if self.col_cache.would_collide_if_moved(start, &new_point) {
                 functional = f32::MAX;
-            } else {
-                functional =
-                    AStar2DSearchState::calc_heuristic_of_point(new_point.as_vec2(), goal) + cost;
+                cost = f32::MAX;
             }
             self.calculated.insert(new_point, cost.into());
             self.to_explore
