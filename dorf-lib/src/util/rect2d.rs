@@ -221,6 +221,11 @@ impl Rect2D {
         (point.cmpge(self.min.as_vec2()) & point.cmple(self.max.as_vec2())).all()
     }
 
+    #[inline]
+    pub fn contains_exclusive_max(&self, point: Vec2) -> bool {
+        (point.cmpge(self.min.as_vec2()) & point.cmplt(self.max.as_vec2())).all()
+    }
+
     /// Build a new rectangle formed of the union of this rectangle and another rectangle.
     ///
     /// The union is the smallest rectangle enclosing both rectangles.
