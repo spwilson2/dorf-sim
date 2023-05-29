@@ -22,7 +22,7 @@ pub struct Rect2D {
 #[inline]
 pub fn tile_from_vec2(mut vec2: Vec2) -> IVec2 {
     vec2.x = vec2.x.floor();
-    vec2.y = vec2.y.floor();
+    vec2.y = vec2.y.ceil();
     vec2.as_ivec2()
 }
 

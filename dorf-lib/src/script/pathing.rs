@@ -32,31 +32,35 @@ pub struct Speed(f32);
 #[derive(Debug)]
 pub struct Grid2D<T> {
     data: Vec<T>,
-    rect: Rect,
+    rect: Rect2D,
 }
 
+pub const MAP_DIMMENSIONS: UVec2 = UVec2 { x: 256, y: 256 };
+
 impl<T: Clone> Grid2D<T> {
-    fn new(center: IVec2, size: IVec2, fill: T) -> Self {
+    fn new(topleft: IVec2, size: UVec2, fill: T) -> Self {
         Self {
             data: vec![fill; (size.x * size.y) as usize],
-            rect: Rect::from_center_size(center.as_vec2(), size.as_vec2()),
+            rect: Rect2D::from_corners(topleft, topleft + size.as_ivec2()),
         }
     }
 }
 impl<T> Grid2D<T> {
-    /// Panics if point out of range
     #[inline]
-    fn get(&self, point: IVec2) -> &T {
+    fn get(&self, point: IVec2) -> Result<&T, LightError> {
         let idx = self.idx_for_point(point);
-        &self.data[idx]
+        match self.data.get(idx) {
+            Some(t) => Ok(t),
+            None => Err(LightError::OutOfBoundsError),
+        }
     }
     #[inline]
     fn idx_for_point(&self, point: IVec2) -> usize {
         // TODO: Recenter
 
-        let bot_left = self.rect.min.as_ivec2();
+        let bot_left = self.rect.min;
         // Distance_y * size_x  + Distance_x
-        ((point.y - bot_left.y) * self.rect.size().as_ivec2().x + (point.x - bot_left.x)) as usize
+        ((point.y - bot_left.y) * self.rect.size().x + (point.x - bot_left.x)) as usize
     }
     /// Panics if point out of range
     #[inline]
@@ -106,7 +110,7 @@ where
 
 impl CollisionGridCache {
     #[inline]
-    pub fn new(center: IVec2, size: IVec2) -> Self {
+    pub fn new(center: IVec2, size: UVec2) -> Self {
         Self {
             grid: Grid2D::new(center, size, None),
             entities: default(),
@@ -115,8 +119,8 @@ impl CollisionGridCache {
     fn dbg_dump_to_log(&self) {
         let mut string = String::new();
 
-        let min = self.grid.rect.min.as_ivec2();
-        let max = self.grid.rect.max.as_ivec2();
+        let min = self.grid.rect.min;
+        let max = self.grid.rect.max;
 
         string.push_str("\n    ");
         for x in min.x..max.x {
@@ -128,7 +132,7 @@ impl CollisionGridCache {
                 string.push_str(
                     format!(
                         " {}",
-                        match self.grid.get(IVec2 { x, y }) {
+                        match self.grid.get(IVec2 { x, y }).unwrap() {
                             Some(_) => 'x',
                             None => '*',
                         }
@@ -141,39 +145,50 @@ impl CollisionGridCache {
     }
 
     #[inline]
-    pub fn collides(&self, point: IVec2) -> bool {
-        self.grid.get(point).is_some()
+    pub fn collides(&self, point: IVec2) -> Result<bool, crate::LightError> {
+        Ok(self.grid.get(point)?.is_some())
     }
     #[inline]
-    pub fn transform_collides_with(&self, obj: &Transform2D, uuid: Uuid) -> Option<Uuid> {
+    pub fn transform_collides_with(
+        &self,
+        obj: &Transform2D,
+        uuid: Uuid,
+    ) -> Result<Option<Uuid>, crate::LightError> {
         // Check overlapping rect
         let mut col = None;
         for_points_on_transform(obj, |point| {
-            let res = self.grid.get(point);
+            let res = self.grid.get(point)?;
             if res.is_some() {
                 if *res != Some(uuid) {
                     col = *res;
-                    return Err(());
+                    return Err(LightError::TerminateEarly);
                 }
             }
             Ok(())
         });
-        col
+        Ok(col)
     }
-    pub fn would_collide_if_moved(&self, obj: &Transform2D, new_loc: &IVec2) -> bool {
+    pub fn would_collide_if_moved(
+        &self,
+        obj: &Transform2D,
+        new_loc: &IVec2,
+    ) -> Result<bool, LightError> {
         let mut obj = obj.clone();
         obj.loc = new_loc.xyy().as_vec3();
-
         // Check overlapping rect
-        for_points_on_transform(&obj, |point| {
-            if self.collides(point) {
-                Err(())
-            } else {
-                Ok(())
+        let res = for_points_on_transform(&obj, |point| {
+            if self.collides(point)? {
+                return Err(LightError::TerminateEarly);
             }
-        })
-        .is_err()
+            Ok(())
+        });
+        match res {
+            Err(LightError::TerminateEarly) => return Ok(true),
+            Ok(_) => Ok(false),
+            Err(e) => Err(e),
+        }
     }
+
     #[inline]
     fn move_entity(&mut self, transform: &Transform2D, uuid: Uuid) {
         // Note: Works on the assumption that there may only be a single
@@ -186,10 +201,10 @@ impl CollisionGridCache {
         }
         // Check if another exists, if so don't override. Collision detection will report.
         for_points_on_transform(transform, move |point| {
-            if self.grid.get(point).is_none() {
+            if self.grid.get(point)?.is_none() {
                 self.grid.set(point, Some(uuid));
             }
-            Ok::<(), ()>(())
+            Ok::<(), LightError>(())
         });
     }
     #[inline]
@@ -235,7 +250,10 @@ pub fn sys_handle_collisions(
     q: Query<(&Transform2D, &BoxCollider), Changed<Transform2D>>,
 ) {
     for (transform, collider) in q.iter() {
-        if let Some(uuid) = cache.transform_collides_with(transform, collider.uuid) {
+        if let Some(uuid) = cache
+            .transform_collides_with(transform, collider.uuid)
+            .unwrap()
+        {
             // TODO z_level
             //if let Some(existing_uuid) = cache.grid.get(IVec2 {
             //    x: transform.loc.x as i32,
@@ -344,7 +362,12 @@ impl<'i> AStar2DSearchState<'i> {
         if !self.calculated.contains_key(&new_point) {
             let mut functional =
                 AStar2DSearchState::calc_heuristic_of_point(new_point.as_vec2(), goal) + cost;
-            if self.col_cache.would_collide_if_moved(start, &new_point) {
+            if self
+                .col_cache
+                .would_collide_if_moved(start, &new_point)
+                .unwrap_or(true)
+            // If fails to unwrap, then it's because we looked at an out of bounds point.
+            {
                 functional = f32::MAX;
                 cost = f32::MAX;
             }
@@ -439,6 +462,7 @@ fn calc_optimal_path(
     Some(path)
 }
 
+pub fn sys_assign_new_goal(mut cmd: Commands, q: Query<(Entity, &Transform2D, &GoalLoc)>) {}
 pub fn system_assign_optimal_path(
     mut cmd: Commands,
     col_cache: Res<CollisionGridCache>,

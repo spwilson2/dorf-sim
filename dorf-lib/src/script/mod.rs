@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     prelude::*,
-    script::pathing::CollisionGridCache,
+    script::pathing::{CollisionGridCache, MAP_DIMMENSIONS},
     terminal::{
         camera::{CameraResized, TerminalCamera2d},
         render::CharTexture,
@@ -24,19 +24,18 @@ pub struct ScriptPlugin();
 impl Plugin for ScriptPlugin {
     fn build(&self, app: &mut App) {
         log::info!("Initializing ScriptPlugin");
-        app.insert_resource(CollisionGridCache::new(
-            IVec2::default(),
-            IVec2 { x: 30, y: 30 },
-        ))
-        .add_system(handle_camera_movement_keys)
-        .add_system(handle_camera_resized)
-        .add_system(pathing::system_move_on_optimal_path)
-        .add_system(pathing::sys_update_collision_cache)
-        .add_system(pathing::system_assign_optimal_path.after(pathing::sys_update_collision_cache))
-        .add_system(pathing::sys_handle_collisions)
-        .add_startup_system(pathing::spawn_collider_walls)
-        .add_startup_system(pathing::spawn_mv_player)
-        .add_startup_system(spawn_textures);
+        app.insert_resource(CollisionGridCache::new(IVec2::default(), MAP_DIMMENSIONS))
+            .add_system(handle_camera_movement_keys)
+            .add_system(handle_camera_resized)
+            .add_system(pathing::system_move_on_optimal_path)
+            .add_system(pathing::sys_update_collision_cache)
+            .add_system(
+                pathing::system_assign_optimal_path.after(pathing::sys_update_collision_cache),
+            )
+            .add_system(pathing::sys_handle_collisions)
+            .add_startup_system(pathing::spawn_collider_walls)
+            .add_startup_system(pathing::spawn_mv_player)
+            .add_startup_system(spawn_textures);
     }
 }
 /// - Create a player with a random intended path

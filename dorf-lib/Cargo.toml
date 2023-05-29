@@ -13,6 +13,7 @@ shutdown_hooks = "0.1.0"
 signal-hook = "0.3.15"
 fastrand = "1.9.0"
 ordered-float = "3.7.0"
+thiserror = "1.0.40"
 
 
 # Enable a small amount of optimization in debug mode
