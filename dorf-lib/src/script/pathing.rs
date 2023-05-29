@@ -459,7 +459,6 @@ fn calc_optimal_path(
             break;
         }
     }
-    state.dbg_dump_to_log();
     Some(path)
 }
 
@@ -473,7 +472,7 @@ pub fn sys_assign_new_goal(
         // TODO: Random point within bounds
 
         //= MAP_DIMMENSIONS;
-        goal.0 = Some(fastrand::f32() * MAP_DIMMENSIONS.as_vec2());
+        goal.0 = Some(Vec2::new(fastrand::f32(), fastrand::f32()) * MAP_DIMMENSIONS.as_vec2());
     }
 }
 
@@ -541,16 +540,18 @@ pub fn system_move_on_optimal_path(
 }
 
 pub(crate) fn spawn_mv_player(mut cmd: Commands) {
-    cmd.spawn(Player {
-        speed: Speed(5.0),
-        goal: GoalLoc(Some(Vec2::new(3.0, 3.0))),
-        rect: CharTexture { texture: 'p' },
-        transform: Transform2D {
-            scale: UVec2::splat(1),
-            loc: Vec3::ZERO,
-        },
-        collider: default(),
-    });
+    for i in 0..1000 {
+        cmd.spawn(Player {
+            speed: Speed(5.0),
+            goal: GoalLoc(Some(Vec2::new(3.0, 3.0))),
+            rect: CharTexture { texture: 'p' },
+            transform: Transform2D {
+                scale: UVec2::splat(1),
+                loc: Vec3::ZERO,
+            },
+            collider: default(),
+        });
+    }
     //cmd.spawn(Player {
     //    speed: Speed(5.0),
     //    goal: GoalLoc(Some(Vec2::new(1.0, 3.0))),
