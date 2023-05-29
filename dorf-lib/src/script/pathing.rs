@@ -60,7 +60,6 @@ impl<T> Grid2D<T> {
     }
     #[inline]
     fn idx_for_point(&self, point: IVec2) -> Result<usize, LightError> {
-        // TODO: Recenter
         if !self.rect.contains_exclusive_max(point.as_vec2()) {
             return Err(LightError::OutOfBoundsError);
         }

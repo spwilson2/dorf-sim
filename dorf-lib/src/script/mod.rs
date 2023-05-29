@@ -21,13 +21,10 @@ use ordered_float::OrderedFloat;
 #[derive(Default)]
 pub struct ScriptPlugin();
 
-impl Plugin for ScriptPlugin {
-    fn build(&self, app: &mut App) {
-        log::info!("Initializing ScriptPlugin");
+fn add_pathing_systems(app: &mut App, enabled: bool) {
+    if enabled {
+        log::debug!("pathing system: enabled");
         app.insert_resource(CollisionGridCache::new(IVec2::default(), MAP_DIMMENSIONS))
-            .add_system(handle_camera_movement_keys)
-            .add_system(sys_assign_new_goal)
-            .add_system(handle_camera_resized)
             .add_system(pathing::system_move_on_optimal_path)
             .add_system(pathing::sys_update_collision_cache)
             .add_system(
@@ -35,8 +32,19 @@ impl Plugin for ScriptPlugin {
             )
             .add_system(pathing::sys_handle_collisions)
             .add_startup_system(pathing::spawn_collider_walls)
-            .add_system(pathing::spawn_mv_player_over_time)
+            .add_system(pathing::spawn_mv_player_over_time);
+    } else {
+        log::debug!("pathing system: disabled");
+    }
+}
+impl Plugin for ScriptPlugin {
+    fn build(&self, app: &mut App) {
+        log::debug!("Initializing ScriptPlugin");
+        app.add_system(handle_camera_movement_keys)
+            .add_system(sys_assign_new_goal)
+            .add_system(handle_camera_resized)
             .add_startup_system(spawn_textures);
+        add_pathing_systems(app, false);
     }
 }
 /// - Create a player with a random intended path
