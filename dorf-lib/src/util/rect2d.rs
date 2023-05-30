@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use bevy::math::Vec3Swizzles;
 
 /// A rectangle defined by two opposite corners.
 ///

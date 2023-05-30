@@ -1,18 +1,12 @@
+use crate::prelude::*;
 use std::{
     cmp::{max, min, Ordering},
     collections::VecDeque,
 };
 
-use bevy::math::Vec3Swizzles;
-
 /// This plugin is responsible for providing Components which can be rendered down onto a terminal screen and then painted.
 /// Render logic is super simple: The TransformTexture with the highest z value will be painted.
-use crate::{prelude::*, util::rect2d::Rect2D};
-
-use super::{
-    camera::TerminalCamera2d,
-    display::{self, TerminalDisplayBuffer},
-};
+use super::{camera::TerminalCamera2d, display::TerminalDisplayBuffer};
 
 #[derive(Bundle, Clone)]
 pub struct CharTextureTransform {
@@ -24,6 +18,11 @@ pub struct CharTextureTransform {
 #[derive(Component, Clone)]
 pub struct CharTexture {
     pub texture: char,
+}
+
+#[derive(Component)]
+pub struct CharPaintGrid {
+    grid: Grid2D<char>,
 }
 
 #[derive(Default)]

@@ -5,17 +5,14 @@ use std::{
 
 use crate::{
     prelude::*,
+    script::{local_map::LOCAL_MAP_DIMMENSIONS, pathing},
     terminal::{
         camera::{CameraResized, TerminalCamera2d},
         render::CharTexture,
     },
 };
 
-use bevy::{
-    input::keyboard::KeyboardInput,
-    math::{Vec2Swizzles, Vec3Swizzles},
-    transform,
-};
+use bevy::{input::keyboard::KeyboardInput, transform};
 use bevy::{input::ButtonState, utils::Uuid};
 use ordered_float::OrderedFloat;
 
@@ -30,53 +27,25 @@ pub struct NewGoalNeeded;
 
 #[derive(Component)]
 pub struct GoalLoc(Option<Vec2>);
+
 #[derive(Component)]
 pub struct Speed(f32);
 
-#[derive(Debug)]
-pub struct Grid2D<T> {
-    data: Vec<T>,
-    rect: Rect2D,
-}
-
-pub const MAP_DIMMENSIONS: UVec2 = UVec2 { x: 100, y: 50 };
-
-impl<T: Clone> Grid2D<T> {
-    fn new(topleft: IVec2, size: UVec2, fill: T) -> Self {
-        Self {
-            data: vec![fill; (size.x * size.y) as usize],
-            rect: Rect2D::from_corners(topleft, topleft + size.as_ivec2()),
-        }
-    }
-}
-impl<T> Grid2D<T> {
-    #[inline]
-    fn get(&self, point: IVec2) -> Result<&T, LightError> {
-        let idx = self.idx_for_point(point)?;
-        match self.data.get(idx) {
-            Some(t) => Ok(t),
-            None => Err(LightError::OutOfBoundsError),
-        }
-    }
-    #[inline]
-    fn idx_for_point(&self, point: IVec2) -> Result<usize, LightError> {
-        if !self.rect.contains_exclusive_max(point.as_vec2()) {
-            return Err(LightError::OutOfBoundsError);
-        }
-        let top_left = self.rect.min;
-        // Distance_y * size_x  + Distance_x
-        Ok(((top_left.y + point.y) * self.rect.size().x + (top_left.x + point.x)) as usize)
-    }
-    /// Panics if point out of range
-    #[inline]
-    fn set_idx(&mut self, idx: usize, entity: T) {
-        self.data[idx] = entity;
-    }
-    /// Panics if point out of range
-    #[inline]
-    fn set(&mut self, point: IVec2, entity: T) {
-        let idx = self.idx_for_point(point).unwrap();
-        self.data[idx] = entity;
+pub fn add_pathing_systems(app: &mut App, enabled: bool) {
+    if enabled {
+        log::debug!("pathing system: enabled");
+        app.insert_resource(CollisionGridCache::new(
+            IVec2::default(),
+            LOCAL_MAP_DIMMENSIONS,
+        ))
+        .add_system(pathing::system_move_on_optimal_path)
+        .add_system(pathing::sys_update_collision_cache)
+        .add_system(pathing::system_assign_optimal_path.after(pathing::sys_update_collision_cache))
+        .add_system(pathing::sys_handle_collisions)
+        .add_startup_system(pathing::spawn_collider_walls)
+        .add_system(pathing::spawn_mv_player_over_time);
+    } else {
+        log::debug!("pathing system: disabled");
     }
 }
 
@@ -124,8 +93,8 @@ impl CollisionGridCache {
     fn dbg_dump_to_log(&self) {
         let mut string = String::new();
 
-        let min = self.grid.rect.min;
-        let max = self.grid.rect.max;
+        let min = self.grid.rect().min;
+        let max = self.grid.rect().max;
 
         string.push_str("\n    ");
         for x in min.x..max.x {
@@ -295,8 +264,8 @@ impl<'i> AStar2DSearchState<'i> {
         let mut s = Self {
             calculated: default(),
             calculated_: Grid2D::new(
-                col_cache.grid.rect.min,
-                col_cache.grid.rect.size().as_uvec2(),
+                col_cache.grid.rect().min,
+                col_cache.grid.rect().size().as_uvec2(),
                 None,
             ),
             to_explore: default(),
@@ -498,8 +467,9 @@ pub fn sys_assign_new_goal(
         assert_eq!(goal.0, None);
         // TODO: Random point within bounds
 
-        //= MAP_DIMMENSIONS;
-        goal.0 = Some(Vec2::new(fastrand::f32(), fastrand::f32()) * MAP_DIMMENSIONS.as_vec2());
+        //=LOCAL_MAP_DIMMENSIONS;
+        goal.0 =
+            Some(Vec2::new(fastrand::f32(), fastrand::f32()) * LOCAL_MAP_DIMMENSIONS.as_vec2());
     }
 }
 

@@ -1,3 +1,4 @@
+pub mod local_map;
 pub mod pathing;
 
 use std::{
@@ -7,7 +8,10 @@ use std::{
 
 use crate::{
     prelude::*,
-    script::pathing::{sys_assign_new_goal, CollisionGridCache, MAP_DIMMENSIONS},
+    script::{
+        local_map::{add_local_map_systems, LOCAL_MAP_DIMMENSIONS},
+        pathing::{add_pathing_systems, sys_assign_new_goal, CollisionGridCache},
+    },
     terminal::{
         camera::{CameraResized, TerminalCamera2d},
         render::CharTexture,
@@ -21,22 +25,6 @@ use ordered_float::OrderedFloat;
 #[derive(Default)]
 pub struct ScriptPlugin();
 
-fn add_pathing_systems(app: &mut App, enabled: bool) {
-    if enabled {
-        log::debug!("pathing system: enabled");
-        app.insert_resource(CollisionGridCache::new(IVec2::default(), MAP_DIMMENSIONS))
-            .add_system(pathing::system_move_on_optimal_path)
-            .add_system(pathing::sys_update_collision_cache)
-            .add_system(
-                pathing::system_assign_optimal_path.after(pathing::sys_update_collision_cache),
-            )
-            .add_system(pathing::sys_handle_collisions)
-            .add_startup_system(pathing::spawn_collider_walls)
-            .add_system(pathing::spawn_mv_player_over_time);
-    } else {
-        log::debug!("pathing system: disabled");
-    }
-}
 impl Plugin for ScriptPlugin {
     fn build(&self, app: &mut App) {
         log::debug!("Initializing ScriptPlugin");
@@ -45,6 +33,7 @@ impl Plugin for ScriptPlugin {
             .add_system(handle_camera_resized)
             .add_startup_system(spawn_textures);
         add_pathing_systems(app, false);
+        add_local_map_systems(app, true);
     }
 }
 /// - Create a player with a random intended path

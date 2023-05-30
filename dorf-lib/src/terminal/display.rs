@@ -9,7 +9,6 @@ use crossterm::terminal::{
 use crossterm::{execute, QueueableCommand};
 
 use crate::prelude::*;
-use crate::util::on_exit::{OnExitPlugin, RegisterOnExit};
 
 use super::input::TerminalResize;
 
