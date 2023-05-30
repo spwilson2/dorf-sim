@@ -16,21 +16,39 @@ use bevy::{input::keyboard::KeyboardInput, transform};
 use bevy::{input::ButtonState, utils::Uuid};
 use ordered_float::OrderedFloat;
 
-#[derive(Component)]
-pub struct MovePath {
-    steps: Vec<Vec2>,
-}
-
-// Component added just to tag that a new MovePath is needed.
-#[derive(Component)]
-pub struct NewGoalNeeded;
-
+/// A component indicating a location to move towards. Once a `MovePath` has
+/// been assigned, the contained `Vec2` point will be cleared and set to `None`.
 #[derive(Component)]
 pub struct GoalLoc(Option<Vec2>);
 
+/// A component indicating an Entity's move speed.
 #[derive(Component)]
 pub struct Speed(f32);
 
+/// A tag Component indicating an entity is collidable but will not move
+#[derive(Component, Debug, Default)]
+pub struct ImmobileObstacle;
+
+/// A tag Component indicating an entity is moveable, should be verified it
+/// doesn't land on an `ImmobileObstacleTag`, and but it can layer with other
+/// `LayerableCollider` entities
+#[derive(Component, Debug, Default)]
+pub struct LayerableCollider;
+
+/// A compnent to containing a computed path to a previously assigned `GoalLoc`
+#[derive(Component)]
+struct MovePath {
+    steps: Vec<Vec2>,
+}
+
+/// A cache used to store the location of static Entities which objects should avoid.
+#[derive(Resource, Debug)]
+struct CollisionGridCache {
+    grid: Grid2D<Option<Entity>>,
+    entities: HashMap<Entity, Transform2D>,
+}
+
+/// Initialization function for pathing systems and an example spawner.
 pub fn add_pathing_systems(app: &mut App, enabled: bool) {
     if enabled {
         log::debug!("pathing system: enabled");
@@ -42,25 +60,11 @@ pub fn add_pathing_systems(app: &mut App, enabled: bool) {
         .add_system(pathing::sys_update_collision_cache)
         .add_system(pathing::system_assign_optimal_path.after(pathing::sys_update_collision_cache))
         .add_system(pathing::sys_handle_collisions)
-        .add_startup_system(pathing::spawn_collider_walls)
-        .add_system(pathing::spawn_mv_player_over_time);
+        .add_system(pathing::spawn_mv_player_over_time)
+        .add_startup_system(pathing::spawn_collider_walls);
     } else {
         log::debug!("pathing system: disabled");
     }
-}
-
-//#[derive(Debug, Default, PartialEq)]
-//struct UVec2 {
-//    x: u32,
-//    y: u32,
-//}
-
-struct StopIteration;
-
-#[derive(Resource, Debug)]
-pub struct CollisionGridCache {
-    grid: Grid2D<Option<Entity>>,
-    entities: HashMap<Entity, Transform2D>,
 }
 
 fn for_points_on_transform<F, E>(transform: &Transform2D, f: F) -> Result<(), E>
@@ -118,6 +122,9 @@ impl CollisionGridCache {
         log::info!("Collision Grid: {}", string);
     }
 
+    /// Returns:
+    /// - `Ok(true)` if `point` would collide with cached colliders, `Ok(false)` if not
+    /// - `Err(OutOfBoundsError)` if the point isn't on the grid
     #[inline]
     pub fn collides(&self, point: IVec2) -> Result<bool, crate::LightError> {
         Ok(self.grid.get(point)?.is_some())
@@ -142,6 +149,11 @@ impl CollisionGridCache {
         });
         Ok(col)
     }
+
+    /// Returns:
+    /// - `Ok(true)` if `obj` would collide with cached colliders if it were
+    ///    moved to `point`, `Ok(false)` if not.
+    /// - `Err(OutOfBoundsError)` if the point isn't on the grid
     pub fn would_collide_if_moved(
         &self,
         obj: &Transform2D,
@@ -163,6 +175,7 @@ impl CollisionGridCache {
         }
     }
 
+    /// Updates the cache by moving the specific entity's colliders
     #[inline]
     fn move_entity(&mut self, transform: &Transform2D, uuid: Entity) {
         // Note: Works on the assumption that there may only be a single
@@ -181,32 +194,11 @@ impl CollisionGridCache {
             Ok::<(), LightError>(())
         });
     }
-    #[inline]
-    fn clear(&mut self) {}
 }
 
-//impl From<Vec2> for UVec2 {
-//    fn from(vec2: Vec2) -> Self {
-//        Self {
-//            x: vec2.x as u32,
-//            y: vec2.y as u32,
-//        }
-//    }
-//}
-
-/// Simple tag Component indicating an entity is collidable
-#[derive(Component, Debug, Default)]
-pub struct ImmobileObstacleTag;
-
-#[derive(Component, Debug, Default)]
-pub struct IdComponent;
-
-#[derive(Component, Debug, Default)]
-pub struct LayerableColliderTag;
-
-pub fn sys_update_collision_cache(
+fn sys_update_collision_cache(
     mut cache: ResMut<CollisionGridCache>,
-    q: Query<(Entity, &Transform2D, &ImmobileObstacleTag), Changed<Transform2D>>,
+    q: Query<(Entity, &Transform2D, &ImmobileObstacle), Changed<Transform2D>>,
 ) {
     for (entity, transform, _obstacle) in q.iter() {
         log::info!("Moving {:?}", entity);
@@ -215,9 +207,9 @@ pub fn sys_update_collision_cache(
     }
 }
 
-pub fn sys_handle_collisions(
+fn sys_handle_collisions(
     cache: Res<CollisionGridCache>,
-    q: Query<(Entity, &Transform2D, &LayerableColliderTag), Changed<Transform2D>>,
+    q: Query<(Entity, &Transform2D, &LayerableCollider), Changed<Transform2D>>,
 ) {
     for (entity, transform, collider) in q.iter() {
         if let Some(uuid) = cache.transform_collides_with(transform, entity).unwrap() {
@@ -225,15 +217,6 @@ pub fn sys_handle_collisions(
             panic!("Overlapping entities");
         }
     }
-}
-
-#[derive(Bundle)]
-struct Player {
-    speed: Speed,
-    goal: GoalLoc,
-    rect: CharTexture,
-    transform: Transform2D,
-    collider: LayerableColliderTag,
 }
 
 #[derive(Debug)]
@@ -317,9 +300,6 @@ impl<'i> AStar2DSearchState<'i> {
             }
         }
         log::info!("Search Grid: {}", string);
-        //calculated: HashMap<IVec2, OrderedFloat<f32>>,
-        //to_explore: BinaryHeap<Reverse<FunctionalTuple>>,
-        //col_cache: &'i CollisionGridCache,
     }
 
     #[inline]
@@ -355,6 +335,7 @@ impl<'i> AStar2DSearchState<'i> {
             //self.calculated.insert(new_point, OrderedFloat(cost));
         }
     }
+
     fn explore_neighbors(&mut self, transform: &Transform2D, goal: &Vec2, cost: f32) {
         let node = transform.as_tile();
         let left = IVec2 { x: -1, y: 0 } + node;
@@ -422,16 +403,13 @@ impl<'i> AStar2DSearchState<'i> {
             .and_then(|h| Some((self.calculated_.get(h.0 .1).unwrap().unwrap().0, h.0 .1)))
     }
 }
+
+/// Calculate the optimal path from `start` to `goal` using A* search algorithm
 fn calc_optimal_path(
     col_cache: &CollisionGridCache,
     start: &Transform2D,
     goal: Vec2,
 ) -> Option<Vec<Vec2>> {
-    // TODO: Detect unreachable:
-    // Unreachable (easy) if itself is a collider node.
-    // Unreachable if enclosed by explored paths... How do I detect that..
-
-    // TODO: Start at first node, find next best node towards goal
     let mut state = AStar2DSearchState::new(col_cache, start);
     let mut cur_node = start.clone();
     let mut cost = 0.0;
@@ -439,13 +417,18 @@ fn calc_optimal_path(
     loop {
         // Collect costs for all neighbors
         state.explore_neighbors(&cur_node, &goal, cost);
-        // Select the next best node to explore, save the actual value
+        // Select the next best node to explore, carry the cost of getting to
+        // that node. If there aren't any more nodes to explore then there was
+        // no path so return None.
         (cost, next_loc) = state.select_next_node()?;
         cur_node.loc = next_loc.as_vec2().xyy();
+        // If the next node gets us to the goal, we're done
         if cur_node.as_tile() == goal.as_ivec2() {
             break;
         }
     }
+
+    // Now just collect the cheapest path from the goal to where we started
     let mut path = Vec::new();
     let mut next = goal.as_ivec2();
     loop {
@@ -458,85 +441,91 @@ fn calc_optimal_path(
     Some(path)
 }
 
-pub fn sys_assign_new_goal(
-    mut cmd: Commands,
-    mut q: Query<(Entity, &NewGoalNeeded, &mut GoalLoc)>,
-) {
-    for (entity, _tag, mut goal) in q.iter_mut() {
-        cmd.entity(entity).remove::<NewGoalNeeded>();
-        assert_eq!(goal.0, None);
-        // TODO: Random point within bounds
-
-        //=LOCAL_MAP_DIMMENSIONS;
-        goal.0 =
-            Some(Vec2::new(fastrand::f32(), fastrand::f32()) * LOCAL_MAP_DIMMENSIONS.as_vec2());
-    }
+fn random_point_on_local_map() -> Vec2 {
+    Vec2::new(fastrand::f32(), fastrand::f32()) * LOCAL_MAP_DIMMENSIONS.as_vec2()
 }
 
-pub fn system_assign_optimal_path(
+/// System which will act on Entities wth `Some(GoalLoc)` and compute an optimal
+/// `MovePath` using A* search.
+fn system_assign_optimal_path(
     mut cmd: Commands,
     col_cache: Res<CollisionGridCache>,
     mut q: Query<(Entity, &Transform2D, &mut GoalLoc), Changed<GoalLoc>>,
 ) {
-    if !q.is_empty() {
-        col_cache.dbg_dump_to_log();
-    }
     for (entity, transform, mut goal) in q.iter_mut() {
         if let Some(goal_loc) = goal.0 {
             match calc_optimal_path(&*col_cache, transform, goal_loc) {
                 // Path Found
                 Some(path) => {
-                    cmd.entity(entity).insert(MovePath {
-                        steps: path, // TODO: Handle inability to path.
-                    });
+                    cmd.entity(entity).insert(MovePath { steps: path });
+                    goal.0 = None;
                 }
                 // No path found
                 None => {
-                    cmd.entity(entity).insert(NewGoalNeeded);
+                    goal.0 = Some(random_point_on_local_map());
                 }
             }
-            goal.0 = None;
         }
     }
 }
 
-pub fn system_move_on_optimal_path(
-    mut cmd: Commands,
+/// System that will move Entities along their given `MovePath`, once they reach
+/// the end of their assignments, then assign a new goal.
+fn system_move_on_optimal_path(
     time: Res<Time>,
-    mut q: Query<(Entity, &mut MovePath, &mut Transform2D, &Speed)>,
+    mut q: Query<(
+        Entity,
+        &mut MovePath,
+        &mut Transform2D,
+        &Speed,
+        &mut GoalLoc,
+    )>,
 ) {
-    // TODO: Need to handle recompute if colliders change
-    for (entity, mut path, mut rect, speed) in q.iter_mut() {
+    for (entity, mut path, mut rect, speed, mut goal) in q.iter_mut() {
         let mut travel = speed.0 * time.delta().as_secs_f32();
+        // While we have time to travel, contiue doing so.
         loop {
-            // While we have time to travel, contiue doing so.
-
-            // First check if there's nothing left to move
+            // First check if there's nothing left to move, in which case we're
+            // done. Just assign a new goal.
             if path.steps.is_empty() {
-                cmd.entity(entity).insert(NewGoalNeeded);
-                // TODO: Add another goal path
+                goal.0 = Some(random_point_on_local_map());
                 break;
             }
-
             let dist = rect.loc.xy().distance(*path.steps.last().unwrap());
+            // Check if we can simply move to the point, with our currently alloted travel distance.
             if dist <= travel {
                 travel -= dist;
-                // We've moved to the point, need to continue to the next point.
                 let res = path.steps.pop().unwrap();
                 (rect.loc.x, rect.loc.y) = (res[0], res[1]);
-                //rect.loc.xy() = ;
-            } else {
-                // We can't move directly to the point, let's get as close as we can
-                let direction = (*path.steps.last().unwrap() - rect.loc.xy()).normalize();
-                rect.loc.x += direction.x * travel;
-                rect.loc.y += direction.y * travel;
-                break;
+                // We've moved to the point, need to loop back around to the next point.
+                continue;
             }
+            // We can't move directly to the point, let's get as close as we can.
+            let direction = (*path.steps.last().unwrap() - rect.loc.xy()).normalize();
+            rect.loc.x += direction.x * travel;
+            rect.loc.y += direction.y * travel;
+            break;
         }
     }
 }
 
-pub(crate) fn spawn_mv_player_over_time(mut cmd: Commands, mut cnt: Local<usize>) {
+#[derive(Bundle)]
+struct Player {
+    speed: Speed,
+    goal: GoalLoc,
+    rect: CharTexture,
+    transform: Transform2D,
+    collider: LayerableCollider,
+}
+
+#[derive(Bundle)]
+struct ColliderWall {
+    texture: CharTexture,
+    transform: Transform2D,
+    collider: ImmobileObstacle,
+}
+
+fn spawn_mv_player_over_time(mut cmd: Commands, mut cnt: Local<usize>) {
     if *cnt > 1000 {
         return;
     }
@@ -551,26 +540,9 @@ pub(crate) fn spawn_mv_player_over_time(mut cmd: Commands, mut cnt: Local<usize>
         },
         collider: default(),
     });
-    //cmd.spawn(Player {
-    //    speed: Speed(5.0),
-    //    goal: GoalLoc(Some(Vec2::new(1.0, 3.0))),
-    //    rect: CharTexture { texture: 'p' },
-    //    transform: Transform2D {
-    //        scale: UVec2::splat(1),
-    //        loc: Vec3::ZERO,
-    //    },
-    //    collider: default(),
-    //});
 }
 
-#[derive(Bundle)]
-struct ColliderWall {
-    texture: CharTexture,
-    transform: Transform2D,
-    collider: ImmobileObstacleTag,
-}
-
-pub(crate) fn spawn_collider_walls(mut cmd: Commands) {
+fn spawn_collider_walls(mut cmd: Commands) {
     cmd.spawn(ColliderWall {
         texture: CharTexture { texture: 'x' },
         transform: Transform2D {

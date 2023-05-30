@@ -1,8 +1,8 @@
 #![allow(unused_must_use, unused_imports, unused_variables, dead_code)]
-mod script;
-mod terminal;
-mod util;
-mod prelude {
+pub mod script;
+pub mod terminal;
+pub mod util;
+pub mod prelude {
     pub use crate::util::*;
     pub use bevy::prelude::*;
     pub use glam::*;
