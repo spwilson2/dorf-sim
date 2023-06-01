@@ -1,5 +1,4 @@
-use crate::terminal::camera::{CameraResized, TerminalCamera2D};
-use crate::{prelude::*, terminal::render::CharTexture};
+use crate::prelude::*;
 use bevy::{input::keyboard::KeyboardInput, transform};
 use bevy::{input::ButtonState, utils::Uuid};
 

@@ -59,6 +59,11 @@ impl DisplayBuffer {
         self.c_vec.clear();
         self.c_vec.resize((width * height) as usize, ' ');
     }
+    pub fn reinit(&mut self) {
+        let width = self.width;
+        let height = self.height;
+        self.resize(width, height);
+    }
 }
 
 #[derive(Resource, Debug)]
@@ -151,7 +156,7 @@ fn paint_all(
     .unwrap();
 
     // If we're flushing, clear the backing buffer, this will cause us to reinitialize it and write new data.
-    phys_term_buffer.buf.c_vec.clear();
+    phys_term_buffer.buf.reinit();
 
     // Full pass repaint, collect values into the physical buffer as we repaint.
     stdout
@@ -159,8 +164,12 @@ fn paint_all(
             virt_term_buffer
                 .c_vec
                 .iter()
-                .map(|c| {
-                    phys_term_buffer.c_vec.push(*c);
+                .enumerate()
+                .map(|(i, c)| {
+                    unsafe { *phys_term_buffer.c_vec.get_unchecked_mut(i) = *c };
+                    // NOTE: We need to do this collection into a separate
+                    // vector since we're mapping down ascii chars to u8s.
+                    debug_assert!(c.is_ascii());
                     *c as u8
                 })
                 .collect::<Vec<u8>>()

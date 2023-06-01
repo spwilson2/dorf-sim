@@ -2,5 +2,4 @@
 
 fn main() {
     dorf_lib::app_main();
-    println!("Hello, world!");
 }

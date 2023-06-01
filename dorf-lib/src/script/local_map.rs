@@ -1,6 +1,6 @@
 use std::cmp::max;
 
-use crate::{prelude::*, terminal::render::CharTexture};
+use crate::prelude::*;
 
 pub const LOCAL_MAP_DIMMENSIONS: UVec2 = UVec2 { x: 100, y: 50 };
 //

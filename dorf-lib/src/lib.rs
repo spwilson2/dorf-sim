@@ -3,6 +3,7 @@ pub mod script;
 pub mod terminal;
 pub mod util;
 pub mod prelude {
+    pub use crate::terminal::*;
     pub use crate::util::*;
     pub use bevy::prelude::*;
     pub use glam::*;

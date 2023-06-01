@@ -6,10 +6,6 @@ use std::{
 use crate::{
     prelude::*,
     script::{local_map::LOCAL_MAP_DIMMENSIONS, pathing},
-    terminal::{
-        camera::{CameraResized, TerminalCamera2D},
-        render::CharTexture,
-    },
 };
 
 use bevy::{input::keyboard::KeyboardInput, transform};

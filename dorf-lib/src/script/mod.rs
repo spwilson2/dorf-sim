@@ -9,7 +9,6 @@ use self::camera_frame::*;
 use self::local_map::*;
 use self::pathing::*;
 use crate::prelude::*;
-use crate::terminal::render::CharTexture;
 
 #[derive(Default)]
 pub struct ScriptPlugin();

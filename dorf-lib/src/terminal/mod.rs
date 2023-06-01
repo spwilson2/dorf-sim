@@ -4,11 +4,10 @@ pub mod render;
 
 pub mod display;
 
+use crate::prelude::*;
 pub use camera::*;
 pub use input::*;
 pub use render::*;
-
-use crate::prelude::*;
 
 #[derive(Default)]
 pub struct TerminalPlugin {}
@@ -21,4 +20,21 @@ impl Plugin for TerminalPlugin {
             .add_plugin(self::render::TerminalRenderPlugin::default())
             .add_plugin(self::camera::TerminalCamera2dPlugin::default());
     }
+}
+
+#[derive(Bundle, Clone)]
+pub struct CharTextureTransform {
+    texture: CharTexture,
+    transform: Transform2D,
+}
+
+/// Simple texture on top of transform
+#[derive(Component, Debug, Clone)]
+pub struct CharTexture {
+    pub texture: char,
+}
+
+#[derive(Component)]
+pub struct CharPaintGrid {
+    grid: Grid2D<char>,
 }
