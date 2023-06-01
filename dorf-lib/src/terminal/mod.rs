@@ -2,7 +2,11 @@ pub mod camera;
 pub mod input;
 pub mod render;
 
-mod display;
+pub mod display;
+
+pub use camera::*;
+pub use input::*;
+pub use render::*;
 
 use crate::prelude::*;
 

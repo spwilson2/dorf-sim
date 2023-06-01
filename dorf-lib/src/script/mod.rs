@@ -2,6 +2,9 @@ pub mod camera_frame;
 pub mod local_map;
 pub mod pathing;
 
+use crate::terminal::*;
+use bevy::app::AppExit;
+
 use self::camera_frame::*;
 use self::local_map::*;
 use self::pathing::*;
@@ -14,10 +17,21 @@ pub struct ScriptPlugin();
 impl Plugin for ScriptPlugin {
     fn build(&self, app: &mut App) {
         log::debug!("Initializing ScriptPlugin");
-        app.add_startup_system(spawn_centerpoint);
-        add_pathing_systems(app, false);
+        app.add_startup_system(spawn_centerpoint)
+            .add_system(sys_exit_key_handler);
+        add_pathing_systems(app, true);
         add_local_map_systems(app, true);
         add_camera_frame_systems(app, true);
+    }
+}
+
+fn sys_exit_key_handler(mut input: EventReader<KeyboardInput>, mut writer: EventWriter<AppExit>) {
+    for e in input.iter() {
+        if let Some(k) = e.key_code {
+            if [KeyCode::Escape, KeyCode::Q].contains(&k) {
+                writer.send(AppExit);
+            }
+        }
     }
 }
 

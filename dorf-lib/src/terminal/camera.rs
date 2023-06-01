@@ -10,7 +10,7 @@ pub struct CameraResized(pub UVec2);
 
 impl Plugin for TerminalCamera2dPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(TerminalCamera2d::default())
+        app.insert_resource(TerminalCamera2D::default())
             .add_startup_system(init_camera_autosize)
             .add_event::<CameraResized>()
             .add_system(handle_terminal_resize);
@@ -18,7 +18,7 @@ impl Plugin for TerminalCamera2dPlugin {
 }
 
 fn init_camera_autosize(
-    mut camera: ResMut<TerminalCamera2d>,
+    mut camera: ResMut<TerminalCamera2D>,
     mut camera_event_writer: EventWriter<CameraResized>,
 ) {
     if camera.settings().autoresize() {
@@ -30,7 +30,7 @@ fn init_camera_autosize(
 }
 
 fn handle_terminal_resize(
-    mut camera: ResMut<TerminalCamera2d>,
+    mut camera: ResMut<TerminalCamera2D>,
     mut resize_reader: EventReader<TerminalResize>,
     mut camera_event_writer: EventWriter<CameraResized>,
 ) {
@@ -47,25 +47,22 @@ fn handle_terminal_resize(
 }
 
 #[derive(Resource, Default)]
-pub struct TerminalCamera2d {
+pub struct TerminalCamera2D {
     pub transform: Transform2D,
-    pub settings: TerminalCamera2dSettings,
+    pub settings: TerminalCamera2DSettings,
 }
 
-impl TerminalCamera2d {
+impl TerminalCamera2D {
     pub fn new(loc: Vec3, scale: UVec2, z_lvl: i32) -> Self {
         Self {
-            transform: Transform2D {
-                scale: scale,
-                loc: loc,
-            },
+            transform: Transform2D { scale, loc },
             settings: default(),
         }
     }
     pub fn transform(&self) -> &Transform2D {
         &self.transform
     }
-    pub fn settings(&self) -> &TerminalCamera2dSettings {
+    pub fn settings(&self) -> &TerminalCamera2DSettings {
         &self.settings
     }
     pub fn loc(&self) -> &Vec3 {
@@ -83,16 +80,17 @@ impl TerminalCamera2d {
 }
 
 #[derive(Clone)]
-pub struct TerminalCamera2dSettings {
+pub struct TerminalCamera2DSettings {
     autoresize: bool,
 }
-impl Default for TerminalCamera2dSettings {
+
+impl Default for TerminalCamera2DSettings {
     fn default() -> Self {
         Self { autoresize: true }
     }
 }
 
-impl TerminalCamera2dSettings {
+impl TerminalCamera2DSettings {
     pub fn autoresize(&self) -> bool {
         self.autoresize
     }

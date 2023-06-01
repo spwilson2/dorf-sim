@@ -6,7 +6,7 @@ use std::{
 
 /// This plugin is responsible for providing Components which can be rendered down onto a terminal screen and then painted.
 /// Render logic is super simple: The TransformTexture with the highest z value will be painted.
-use super::{camera::TerminalCamera2d, display::TerminalDisplayBuffer};
+use super::{camera::TerminalCamera2D, display::TerminalDisplayBuffer};
 
 #[derive(Bundle, Clone)]
 pub struct CharTextureTransform {
@@ -76,14 +76,14 @@ fn render(
     mut cache: Local<RenderCache>,
     changed: Query<(&CharTexture, &Transform2D), Changed<Transform2D>>,
     query: Query<(&CharTexture, &Transform2D)>,
-    camera: ResMut<TerminalCamera2d>,
+    camera: ResMut<TerminalCamera2D>,
     mut display_buf: ResMut<TerminalDisplayBuffer>,
 ) {
     if changed.is_empty() && !display_buf.is_changed() && !camera.is_changed() {
         return;
     }
-    let buf_width = display_buf.0.width;
-    let buf_height = display_buf.0.height;
+    let buf_width = display_buf.width;
+    let buf_height = display_buf.height;
     if camera.settings().autoresize() {
         // FIXME?Maybe todo? Not sure if old impl was actually broken.
         //camera.set_dim(UVec2::new(buf_width as u32, buf_height as u32));
@@ -112,10 +112,9 @@ fn render(
     });
 
     // Start by clearing the frame buffer, render will completely fill it.
-    display_buf.0.buf.clear();
+    display_buf.c_vec.clear();
     display_buf
-        .0
-        .buf
+        .c_vec
         .resize((buf_height * buf_width) as usize, ' ');
 
     if buf_width < camera.dim().x as u16 || buf_height < camera.dim().y as u16 {
@@ -152,8 +151,7 @@ fn render(
         for row in start_y..end_y {
             for col in start_x..end_x {
                 let tile = display_buf
-                    .0
-                    .buf
+                    .c_vec
                     .get_mut((col + row * buf_width) as usize)
                     .unwrap();
                 if *tile == ' ' {

@@ -1,64 +1,53 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'dorf-lib'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=dorf-lib"
-                ],
-                "filter": {
-                    "name": "dorf-lib",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug executable 'dorf-sim'",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--bin=dorf-sim",
-                    "--package=dorf-sim"
-                ],
-                "filter": {
-                    "name": "dorf-sim",
-                    "kind": "bin"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in executable 'dorf-sim'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--bin=dorf-sim",
-                    "--package=dorf-sim"
-                ],
-                "filter": {
-                    "name": "dorf-sim",
-                    "kind": "bin"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'dorf-lib'",
+      "cargo": {
+        "args": ["test", "--no-run", "--lib", "--package=dorf-lib"],
+        "filter": {
+          "name": "dorf-lib",
+          "kind": "lib"
         }
-    ]
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'dorf-sim'",
+      "cargo": {
+        "args": ["build", "--bin=dorf-sim", "--package=dorf-sim"],
+        "filter": {
+          "name": "dorf-sim",
+          "kind": "bin"
+        }
+      },
+      "sourceMap": {
+        "/rustc/84c898d65adf2f39a5a98507f1fe0ce10a2b8dbc/": "/Users/mrwilson/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/"
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'dorf-sim'",
+      "cargo": {
+        "args": ["test", "--no-run", "--bin=dorf-sim", "--package=dorf-sim"],
+        "filter": {
+          "name": "dorf-sim",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
 }

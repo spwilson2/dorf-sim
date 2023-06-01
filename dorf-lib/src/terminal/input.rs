@@ -1,17 +1,14 @@
-use bevy::app::AppExit;
-
 use crate::prelude::*;
+use crate::util::on_exit::RegisterOnExit;
+use bevy::input::ButtonState;
+use crossterm::event::KeyCode as CrosstermKeyCode;
 use crossterm::event::{poll, read, Event, KeyEvent};
+use once_cell::sync::Lazy;
 use std::collections::VecDeque;
 use std::sync::Mutex;
 
-use bevy::input::keyboard::KeyCode as BevyKeyCode;
-use bevy::input::keyboard::KeyboardInput;
-use bevy::input::ButtonState;
-use crossterm::event::KeyCode;
-use once_cell::sync::Lazy;
-
-use crate::util::on_exit::RegisterOnExit;
+pub use bevy::input::keyboard::KeyCode;
+pub use bevy::input::keyboard::KeyboardInput;
 
 #[derive(Default)]
 pub struct TerminalInputPlugin {}
@@ -22,7 +19,6 @@ impl Plugin for TerminalInputPlugin {
         app.add_event::<KeyboardInput>()
             .add_event::<TerminalResize>()
             .add_system(handle_input_buffer)
-            .add_system(escape_listener)
             .add_startup_system(init);
     }
 }
@@ -95,124 +91,114 @@ fn handle_input_buffer(
     }
 }
 
-fn terminal_keycode_to_bevy(in_code: &crossterm::event::KeyCode) -> Option<BevyKeyCode> {
+fn terminal_keycode_to_bevy(in_code: &CrosstermKeyCode) -> Option<KeyCode> {
     Some(match in_code {
-        KeyCode::Backspace => BevyKeyCode::Back,
-        KeyCode::Enter => BevyKeyCode::Return,
-        KeyCode::Left => BevyKeyCode::Left,
-        KeyCode::Right => BevyKeyCode::Right,
-        KeyCode::Up => BevyKeyCode::Up,
-        KeyCode::Down => BevyKeyCode::Down,
-        KeyCode::Home => BevyKeyCode::Home,
-        KeyCode::End => BevyKeyCode::End,
-        KeyCode::PageUp => BevyKeyCode::PageUp,
-        KeyCode::PageDown => BevyKeyCode::PageDown,
-        KeyCode::Tab => BevyKeyCode::Tab,
-        KeyCode::BackTab => panic!(),
-        KeyCode::Delete => BevyKeyCode::Delete,
-        KeyCode::Insert => BevyKeyCode::Insert,
-        KeyCode::F(u8) => todo!(),
-        KeyCode::Char(c) => charcode_to_bevy_key_code(*c),
-        KeyCode::Null => todo!(),
-        KeyCode::Esc => BevyKeyCode::Escape,
-        KeyCode::CapsLock => todo!(),
-        KeyCode::ScrollLock => todo!(),
-        KeyCode::NumLock => BevyKeyCode::Numlock,
-        KeyCode::PrintScreen => todo!(),
-        KeyCode::Pause => BevyKeyCode::Pause,
-        KeyCode::Menu => todo!(),
-        KeyCode::KeypadBegin => todo!(),
-        KeyCode::Media(media_key_codee) => todo!(),
-        KeyCode::Modifier(modifier_key_code) => todo!(),
+        CrosstermKeyCode::Backspace => KeyCode::Back,
+        CrosstermKeyCode::Enter => KeyCode::Return,
+        CrosstermKeyCode::Left => KeyCode::Left,
+        CrosstermKeyCode::Right => KeyCode::Right,
+        CrosstermKeyCode::Up => KeyCode::Up,
+        CrosstermKeyCode::Down => KeyCode::Down,
+        CrosstermKeyCode::Home => KeyCode::Home,
+        CrosstermKeyCode::End => KeyCode::End,
+        CrosstermKeyCode::PageUp => KeyCode::PageUp,
+        CrosstermKeyCode::PageDown => KeyCode::PageDown,
+        CrosstermKeyCode::Tab => KeyCode::Tab,
+        CrosstermKeyCode::BackTab => panic!(),
+        CrosstermKeyCode::Delete => KeyCode::Delete,
+        CrosstermKeyCode::Insert => KeyCode::Insert,
+        CrosstermKeyCode::F(u8) => todo!(),
+        CrosstermKeyCode::Char(c) => charcode_to_bevy_key_code(*c),
+        CrosstermKeyCode::Null => todo!(),
+        CrosstermKeyCode::Esc => KeyCode::Escape,
+        CrosstermKeyCode::CapsLock => todo!(),
+        CrosstermKeyCode::ScrollLock => todo!(),
+        CrosstermKeyCode::NumLock => KeyCode::Numlock,
+        CrosstermKeyCode::PrintScreen => todo!(),
+        CrosstermKeyCode::Pause => KeyCode::Pause,
+        CrosstermKeyCode::Menu => todo!(),
+        CrosstermKeyCode::KeypadBegin => todo!(),
+        CrosstermKeyCode::Media(media_key_codee) => todo!(),
+        CrosstermKeyCode::Modifier(modifier_key_code) => todo!(),
     })
 }
 
-fn charcode_to_bevy_key_code(c: char) -> BevyKeyCode {
+fn charcode_to_bevy_key_code(c: char) -> KeyCode {
     match c {
-        '1' => BevyKeyCode::Key1,
-        '2' => BevyKeyCode::Key2,
-        '3' => BevyKeyCode::Key3,
-        '4' => BevyKeyCode::Key4,
-        '5' => BevyKeyCode::Key5,
-        '6' => BevyKeyCode::Key6,
-        '7' => BevyKeyCode::Key7,
-        '8' => BevyKeyCode::Key8,
-        '9' => BevyKeyCode::Key9,
-        '0' => BevyKeyCode::Key0,
-        'A' => BevyKeyCode::A,
-        'B' => BevyKeyCode::B,
-        'C' => BevyKeyCode::C,
-        'D' => BevyKeyCode::D,
-        'E' => BevyKeyCode::E,
-        'F' => BevyKeyCode::F,
-        'G' => BevyKeyCode::G,
-        'H' => BevyKeyCode::H,
-        'I' => BevyKeyCode::I,
-        'J' => BevyKeyCode::J,
-        'K' => BevyKeyCode::K,
-        'L' => BevyKeyCode::L,
-        'M' => BevyKeyCode::M,
-        'N' => BevyKeyCode::N,
-        'O' => BevyKeyCode::O,
-        'P' => BevyKeyCode::P,
-        'Q' => BevyKeyCode::Q,
-        'R' => BevyKeyCode::R,
-        'S' => BevyKeyCode::S,
-        'T' => BevyKeyCode::T,
-        'U' => BevyKeyCode::U,
-        'V' => BevyKeyCode::V,
-        'W' => BevyKeyCode::W,
-        'X' => BevyKeyCode::X,
-        'Y' => BevyKeyCode::Y,
-        'Z' => BevyKeyCode::Z,
+        '1' => KeyCode::Key1,
+        '2' => KeyCode::Key2,
+        '3' => KeyCode::Key3,
+        '4' => KeyCode::Key4,
+        '5' => KeyCode::Key5,
+        '6' => KeyCode::Key6,
+        '7' => KeyCode::Key7,
+        '8' => KeyCode::Key8,
+        '9' => KeyCode::Key9,
+        '0' => KeyCode::Key0,
+        'A' => KeyCode::A,
+        'B' => KeyCode::B,
+        'C' => KeyCode::C,
+        'D' => KeyCode::D,
+        'E' => KeyCode::E,
+        'F' => KeyCode::F,
+        'G' => KeyCode::G,
+        'H' => KeyCode::H,
+        'I' => KeyCode::I,
+        'J' => KeyCode::J,
+        'K' => KeyCode::K,
+        'L' => KeyCode::L,
+        'M' => KeyCode::M,
+        'N' => KeyCode::N,
+        'O' => KeyCode::O,
+        'P' => KeyCode::P,
+        'Q' => KeyCode::Q,
+        'R' => KeyCode::R,
+        'S' => KeyCode::S,
+        'T' => KeyCode::T,
+        'U' => KeyCode::U,
+        'V' => KeyCode::V,
+        'W' => KeyCode::W,
+        'X' => KeyCode::X,
+        'Y' => KeyCode::Y,
+        'Z' => KeyCode::Z,
         //'[' => BevKeyCode::
         //'\\' => BevKeyCode::Backslash,
         //']' => BevKeyCode::
         //'^' => BevKeyCode::
         //'_' => BevKeyCode::
         //'`' => BevKeyCode::
-        'a' => BevyKeyCode::A,
-        'b' => BevyKeyCode::B,
-        'c' => BevyKeyCode::C,
-        'd' => BevyKeyCode::D,
-        'e' => BevyKeyCode::E,
-        'f' => BevyKeyCode::F,
-        'g' => BevyKeyCode::G,
-        'h' => BevyKeyCode::H,
-        'i' => BevyKeyCode::I,
-        'j' => BevyKeyCode::J,
-        'k' => BevyKeyCode::K,
-        'l' => BevyKeyCode::L,
-        'm' => BevyKeyCode::M,
-        'n' => BevyKeyCode::N,
-        'o' => BevyKeyCode::O,
-        'p' => BevyKeyCode::P,
-        'q' => BevyKeyCode::Q,
-        'r' => BevyKeyCode::R,
-        's' => BevyKeyCode::S,
-        't' => BevyKeyCode::T,
-        'u' => BevyKeyCode::U,
-        'v' => BevyKeyCode::V,
-        'w' => BevyKeyCode::W,
-        'x' => BevyKeyCode::X,
-        'y' => BevyKeyCode::Y,
-        'z' => BevyKeyCode::Z,
+        'a' => KeyCode::A,
+        'b' => KeyCode::B,
+        'c' => KeyCode::C,
+        'd' => KeyCode::D,
+        'e' => KeyCode::E,
+        'f' => KeyCode::F,
+        'g' => KeyCode::G,
+        'h' => KeyCode::H,
+        'i' => KeyCode::I,
+        'j' => KeyCode::J,
+        'k' => KeyCode::K,
+        'l' => KeyCode::L,
+        'm' => KeyCode::M,
+        'n' => KeyCode::N,
+        'o' => KeyCode::O,
+        'p' => KeyCode::P,
+        'q' => KeyCode::Q,
+        'r' => KeyCode::R,
+        's' => KeyCode::S,
+        't' => KeyCode::T,
+        'u' => KeyCode::U,
+        'v' => KeyCode::V,
+        'w' => KeyCode::W,
+        'x' => KeyCode::X,
+        'y' => KeyCode::Y,
+        'z' => KeyCode::Z,
         //'{' => BevKeyCode::
         //'|' => BevKeyCode::
         //'}' => BevKeyCode::
         //'~' => BevKeyCode::
-        // '\'' => BevyKeyCode::
+        // '\'' => KeyCode::
         _ => todo!(),
-    }
-}
-
-fn escape_listener(mut input: EventReader<KeyboardInput>, mut writer: EventWriter<AppExit>) {
-    for e in input.iter() {
-        if let Some(k) = e.key_code {
-            if [BevyKeyCode::Escape, BevyKeyCode::Q].contains(&k) {
-                writer.send(AppExit);
-            }
-        }
     }
 }
 

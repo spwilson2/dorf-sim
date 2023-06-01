@@ -15,15 +15,95 @@ use super::input::TerminalResize;
 #[derive(Default)]
 pub struct TerminalDisplayPlugin {}
 
-impl Plugin for TerminalDisplayPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_startup_system(init)
-            .insert_resource(TerminalDisplayBuffer::init_from_screen())
-            .add_system(handle_terminal_resize)
-            .add_system(paint);
+#[derive(Resource, Debug, Deref, DerefMut)]
+pub struct TerminalDisplayBuffer(DisplayBuffer);
+
+#[derive(Debug, Clone)]
+pub struct DisplayBuffer {
+    // Currently we only support ascii and uncolored... Likely will change.
+    pub c_vec: Vec<char>,
+    pub width: u16,
+    pub height: u16,
+}
+
+impl TerminalDisplayBuffer {
+    pub fn get_idx_mut_dbg_checked(&mut self, x: usize, y: usize) -> &mut char {
+        let width = self.width as usize;
+        #[cfg(debug_assertions)]
+        {
+            return self.c_vec.get_mut(x + y * width).unwrap();
+        }
+        #[cfg(not(debug_assertions))]
+        return unsafe { self.c_vec.get_mut(x + y * width).unwrap_unchecked() };
     }
 }
 
+/************************************************************************************************ */
+/*                      Private implementation below...                                         * */
+/************************************************************************************************ */
+
+impl Plugin for TerminalDisplayPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_startup_system(init)
+            .insert_resource(TerminalDisplayBuffer(DisplayBuffer::init_from_screen()))
+            .insert_resource(PhysicalDisplayBuffer::new())
+            .add_system(handle_terminal_resize)
+            .add_system(sys_display_paint);
+    }
+}
+
+impl DisplayBuffer {
+    pub fn resize(&mut self, width: u16, height: u16) {
+        self.width = width;
+        self.height = height;
+        self.c_vec.clear();
+        self.c_vec.resize((width * height) as usize, ' ');
+    }
+}
+
+#[derive(Resource, Debug)]
+struct PhysicalDisplayBuffer {
+    buf: DisplayBuffer,
+    need_flush: bool,
+}
+
+impl std::ops::DerefMut for PhysicalDisplayBuffer {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.buf
+    }
+}
+impl std::ops::Deref for PhysicalDisplayBuffer {
+    type Target = DisplayBuffer;
+
+    fn deref(&self) -> &Self::Target {
+        &self.buf
+    }
+}
+
+impl DisplayBuffer {
+    fn init_from_screen() -> Self {
+        let (width, height) = get_term_size();
+        let buf = DisplayBuffer {
+            c_vec: vec!['\0'; width as usize * height as usize],
+            width,
+            height,
+        };
+        buf
+    }
+}
+
+impl PhysicalDisplayBuffer {
+    fn new() -> Self {
+        Self {
+            buf: DisplayBuffer::init_from_screen(),
+            need_flush: true,
+        }
+    }
+}
+
+/// Initalize the display by setting it to raw mode and moving to the alternate
+/// screen. Also register a cleanup handler to restore settings on
+/// [`AppExit`]/panic.
 fn init(mut onexit_register: EventWriter<RegisterOnExit>) {
     enable_raw_mode().unwrap();
     execute!(stdout(), EnterAlternateScreen, crossterm::cursor::Hide,).unwrap();
@@ -31,29 +111,36 @@ fn init(mut onexit_register: EventWriter<RegisterOnExit>) {
     onexit_register.send(RegisterOnExit(cleanup));
 }
 
+/// Undo [`init`].
 fn cleanup() {
     log::info!("Performing terminal cleanup");
     disable_raw_mode().unwrap();
     execute!(stdout(), LeaveAlternateScreen, crossterm::cursor::Show).unwrap();
 }
 
+/// Handler for [`TerminalResize`] events, updates buffer sizes to match the new
+/// screen size. Resize events will introduce a full repaint.
 fn handle_terminal_resize(
-    mut term_buffer: ResMut<TerminalDisplayBuffer>,
     mut resize_reader: EventReader<TerminalResize>,
+    mut virt_term_buffer: ResMut<TerminalDisplayBuffer>,
+    mut phys_term_buffer: ResMut<PhysicalDisplayBuffer>,
 ) {
     if let Some(resize) = resize_reader.iter().last() {
-        term_buffer
-            .virtual_frame_mut()
-            .resize(resize.width, resize.height);
-        term_buffer
-            .physical_frame_mut()
-            .resize(resize.width, resize.height);
+        virt_term_buffer.resize(resize.width, resize.height);
+        phys_term_buffer.buf.resize(resize.width, resize.height);
         // Resize events will fk shit up, we'll need to repaint.
-        term_buffer.enable_flush();
+        phys_term_buffer.need_flush = true;
     }
 }
 
-fn paint_all(term_buffer: &mut ResMut<TerminalDisplayBuffer>) {
+/// Utility function to handle painting simply clearign the entire physical
+/// buffer and repainting the full screen. This is required on resize events.
+fn paint_all(
+    virt_term_buffer: Res<TerminalDisplayBuffer>,
+    mut phys_term_buffer: ResMut<PhysicalDisplayBuffer>,
+) {
+    // Prevent anything else from interrupting our paint, hold stdout lock until
+    // we're done.
     let mut stdout = stdout().lock();
     queue!(
         stdout,
@@ -62,17 +149,18 @@ fn paint_all(term_buffer: &mut ResMut<TerminalDisplayBuffer>) {
         Clear(ClearType::All)
     )
     .unwrap();
+
     // If we're flushing, clear the backing buffer, this will cause us to reinitialize it and write new data.
-    term_buffer.physical_frame_mut().buf.clear();
-    let (virt, phys) = term_buffer.virt_phys_buffers_mut();
+    phys_term_buffer.buf.c_vec.clear();
 
     // Full pass repaint, collect values into the physical buffer as we repaint.
     stdout
         .write(
-            virt.buf
+            virt_term_buffer
+                .c_vec
                 .iter()
                 .map(|c| {
-                    phys.buf.push(*c);
+                    phys_term_buffer.c_vec.push(*c);
                     *c as u8
                 })
                 .collect::<Vec<u8>>()
@@ -84,160 +172,92 @@ fn paint_all(term_buffer: &mut ResMut<TerminalDisplayBuffer>) {
         .unwrap()
         .flush()
         .unwrap();
+    phys_term_buffer.need_flush = false;
 }
 
-fn paint(mut term_buffer: ResMut<TerminalDisplayBuffer>) {
-    // Detect if there's an update.
-    // If so, perform the render. (TODO: Maybe only render part if necessary?)
-    if term_buffer.is_changed() {
-        log::info!("Change detected");
-        //for (i, c) in term_buffer.0.buf.iter().enumerate() {
-        //    let x = i / term_buffer.0.width as usize;
-        //    let y = i % term_buffer.0.height as usize;
-        //    // TODO: validate the display will still render for given coords, otherwise log a warning and try our best with truncation.
-        //}
-        //
-        // For now, let's just check if  the dimmensions look like they're gonna be fkd and log a warning, we can updated/fix in the next pass.
-        if cfg!(debug_assertions) {
-            let (width, height) = get_term_size();
-            if (width, height) != (term_buffer.0.width, term_buffer.0.height) {
-                log::warn!(
-                    "Write buffer size: {:?} doesn't match current terminal size: {:?}",
-                    (term_buffer.0.width, term_buffer.0.height),
-                    (width, height)
-                );
-            }
-        }
-        debug_assert_eq!(
-            term_buffer.physical_frame_ref().buf.len(),
-            term_buffer.virtual_frame_ref().buf.len()
-        );
-        debug_assert_eq!(
-            term_buffer.0.buf.len(),
-            term_buffer.0.width as usize * term_buffer.0.height as usize
-        );
-
-        if term_buffer.get_flush() {
-            log::info!("Performing full flush paint.");
-            paint_all(&mut term_buffer);
-            term_buffer.set_flush(false);
-            return;
-        }
-
-        let (virt, phys) = term_buffer.virt_phys_buffers_ref();
-        if virt.buf == phys.buf {
-            return;
-        }
-
-        let (virt, phys) = term_buffer.virt_phys_buffers_mut();
-        let width = virt.width;
-        let height = virt.height;
-
-        let mut stdout = stdout().lock();
-        log::info!("Painting!");
-        queue!(
-            stdout,
-            BeginSynchronizedUpdate,
-            MoveTo(0, 0),
-            // I don't know what this would actually do.. won't bother enabling for now.
-            //SetSize(width, height),
-        )
-        .unwrap();
-        // Now just iterate, write in only changes...
-        for (idx, (v_c, p_c_mut)) in virt.buf.iter().zip(phys.buf.iter_mut()).enumerate() {
-            if *v_c != *p_c_mut {
-                let col = idx % width as usize;
-                let row = idx / width as usize;
-                // Move cursor and write
-                stdout
-                    .queue(MoveTo(col as u16, row as u16))
-                    .unwrap()
-                    .write(&[*v_c as u8]);
-                // Update phys buffer
-                *p_c_mut = *v_c;
-            }
-        }
-        stdout
-            .queue(EndSynchronizedUpdate)
-            .unwrap()
-            .flush()
-            .unwrap();
+/// System to handle moving the virtual display buffer cache into a physical
+/// buffer which will then be painted to the terminal.
+///
+/// Note that even "physical buffer" isn't really a direct buffer into the
+/// terminal. That is, the terminal doesn't actually have access to the physical
+/// buffer. We use the physical buffer to maintain what we believe the state of
+/// the actual terminal looks like.
+fn sys_display_paint(
+    virt_term_buffer: Res<TerminalDisplayBuffer>,
+    mut phys_term_buffer: ResMut<PhysicalDisplayBuffer>,
+) {
+    // Detect if there's an update if not skip the paint.
+    if !virt_term_buffer.is_changed() {
+        return;
     }
+    log::info!("Display change detected.");
+    // For now, let's just check if  the dimmensions look like they're gonna be
+    // fkd and log a warning, we can updated/fix in the next pass.
+    #[cfg(debug_assertions)]
+    {
+        let (width, height) = get_term_size();
+        if (width, height) != (virt_term_buffer.width, virt_term_buffer.height) {
+            log::warn!(
+                "Write buffer size: {:?} doesn't match current terminal size: {:?}",
+                (virt_term_buffer.width, virt_term_buffer.height),
+                (width, height)
+            );
+        }
+    }
+    debug_assert_eq!(phys_term_buffer.c_vec.len(), virt_term_buffer.c_vec.len());
+    debug_assert_eq!(
+        virt_term_buffer.c_vec.len(),
+        virt_term_buffer.width as usize * virt_term_buffer.height as usize
+    );
+
+    if phys_term_buffer.need_flush {
+        log::info!("Performing full flush paint.");
+        paint_all(virt_term_buffer, phys_term_buffer);
+        return;
+    }
+
+    if virt_term_buffer.c_vec == phys_term_buffer.c_vec {
+        return;
+    }
+
+    let mut stdout = stdout().lock();
+    log::info!("Painting individual updates.");
+    queue!(
+        stdout,
+        BeginSynchronizedUpdate,
+        MoveTo(0, 0),
+        // I don't know what this SetSize would actually do.. will disable for
+        // now. Just came fromt the example input for crossterm...
+        // SetSize(width, height),
+    )
+    .unwrap();
+
+    // Now just iterate, write in only changes...
+    for (idx, (v_c, p_c_mut)) in virt_term_buffer
+        .c_vec
+        .iter()
+        .zip(phys_term_buffer.c_vec.iter_mut())
+        .enumerate()
+    {
+        if *v_c != *p_c_mut {
+            let col = idx % virt_term_buffer.width as usize;
+            let row = idx / virt_term_buffer.width as usize;
+            // Move cursor and write
+            stdout
+                .queue(MoveTo(col as u16, row as u16))
+                .unwrap()
+                .write(&[*v_c as u8]);
+            // Update phys buffer
+            *p_c_mut = *v_c;
+        }
+    }
+    stdout
+        .queue(EndSynchronizedUpdate)
+        .unwrap()
+        .flush()
+        .unwrap();
 }
 
 fn get_term_size() -> (u16, u16) {
     size().unwrap()
-}
-
-#[derive(Clone)]
-pub struct VirtualDisplayBuffer {
-    // Currently we only support ascii and uncolored... Likely will change.
-    pub buf: Vec<char>,
-    pub width: u16,
-    pub height: u16,
-}
-
-impl VirtualDisplayBuffer {
-    pub fn resize(&mut self, width: u16, height: u16) {
-        self.width = width;
-        self.height = height;
-        self.buf.clear();
-        self.buf.resize((width * height) as usize, ' ');
-    }
-}
-
-#[derive(Resource)]
-pub struct TerminalDisplayBuffer(
-    pub VirtualDisplayBuffer,
-    // Second buffer is used for tracking the actual state internally.
-    // We will only redraw what we need to.
-    pub(self) VirtualDisplayBuffer,
-    bool,
-);
-impl TerminalDisplayBuffer {
-    fn init_from_screen() -> Self {
-        let (width, height) = get_term_size();
-        log::info!("w,h: {:?},{:?}", width, height);
-        let buf = VirtualDisplayBuffer {
-            buf: vec!['\0'; width as usize * height as usize],
-            width,
-            height,
-        };
-        Self(buf.clone(), buf, true)
-    }
-
-    pub fn enable_flush(&mut self) {
-        self.2 = true;
-    }
-
-    pub fn get_flush(&self) -> bool {
-        self.2
-    }
-
-    fn set_flush(&mut self, val: bool) {
-        self.2 = val
-    }
-
-    fn physical_frame_mut(&mut self) -> &mut VirtualDisplayBuffer {
-        &mut self.1
-    }
-    fn physical_frame_ref(&self) -> &VirtualDisplayBuffer {
-        &self.1
-    }
-
-    fn virt_phys_buffers_mut(&mut self) -> (&mut VirtualDisplayBuffer, &mut VirtualDisplayBuffer) {
-        (&mut self.0, &mut self.1)
-    }
-
-    fn virt_phys_buffers_ref(&self) -> (&VirtualDisplayBuffer, &VirtualDisplayBuffer) {
-        (&self.0, &self.1)
-    }
-
-    pub fn virtual_frame_mut(&mut self) -> &mut VirtualDisplayBuffer {
-        &mut self.0
-    }
-
-    pub fn virtual_frame_ref(&self) -> &VirtualDisplayBuffer {
-        &self.0
-    }
 }

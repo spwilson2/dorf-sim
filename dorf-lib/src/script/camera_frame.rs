@@ -1,4 +1,4 @@
-use crate::terminal::camera::{CameraResized, TerminalCamera2d};
+use crate::terminal::camera::{CameraResized, TerminalCamera2D};
 use crate::{prelude::*, terminal::render::CharTexture};
 use bevy::{input::keyboard::KeyboardInput, transform};
 use bevy::{input::ButtonState, utils::Uuid};
@@ -62,7 +62,7 @@ enum CameraSide {
 
 fn handle_camera_resized(
     mut walls: Query<(&mut Transform2D, &CameraSide)>,
-    camera: Res<TerminalCamera2d>,
+    camera: Res<TerminalCamera2D>,
     mut event: EventReader<CameraResized>,
 ) {
     if let Some(event) = event.iter().last() {
@@ -71,7 +71,7 @@ fn handle_camera_resized(
 }
 
 fn center_camera_frame(
-    camera: &TerminalCamera2d,
+    camera: &TerminalCamera2D,
     walls: &mut Query<(&mut Transform2D, &CameraSide)>,
 ) {
     for mut wall in walls.iter_mut() {
@@ -106,7 +106,7 @@ fn center_camera_frame(
 
 fn move_camera(
     direction: Vec2,
-    camera: &mut ResMut<TerminalCamera2d>,
+    camera: &mut ResMut<TerminalCamera2D>,
     walls: &mut Query<(&mut Transform2D, &CameraSide)>,
 ) {
     *camera.loc_mut() += Vec3::new(direction.x, direction.y, 0.0);
@@ -115,7 +115,7 @@ fn move_camera(
 
 fn handle_camera_movement_keys(
     mut input: EventReader<KeyboardInput>,
-    mut camera: ResMut<TerminalCamera2d>,
+    mut camera: ResMut<TerminalCamera2D>,
     mut walls: Query<(&mut Transform2D, &CameraSide)>,
 ) {
     for e in input.iter() {
