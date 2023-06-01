@@ -540,7 +540,7 @@ fn spawn_mv_player_over_time(mut cmd: Commands, mut cnt: Local<usize>) {
 
 fn spawn_collider_walls(mut cmd: Commands) {
     cmd.spawn(ColliderWall {
-        texture: CharTexture { texture: 'x' },
+        texture: CharTexture { texture: '▢' },
         transform: Transform2D {
             scale: UVec2 { x: 1, y: 5 },
             loc: Vec3 {

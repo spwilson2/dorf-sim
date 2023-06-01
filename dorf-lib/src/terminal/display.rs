@@ -1,5 +1,6 @@
 use std::io::{stdout, StdoutLock, Write};
 
+use bytemuck::checked::try_cast_slice;
 use crossterm::cursor::MoveTo;
 use crossterm::queue;
 use crossterm::terminal::{
@@ -156,26 +157,13 @@ fn paint_all(
     .unwrap();
 
     // If we're flushing, clear the backing buffer, this will cause us to reinitialize it and write new data.
-    phys_term_buffer.buf.reinit();
+    //phys_term_buffer.buf.reinit();
+    phys_term_buffer.buf = virt_term_buffer.0.clone();
 
-    // Full pass repaint, collect values into the physical buffer as we repaint.
-    stdout
-        .write(
-            virt_term_buffer
-                .c_vec
-                .iter()
-                .enumerate()
-                .map(|(i, c)| {
-                    unsafe { *phys_term_buffer.c_vec.get_unchecked_mut(i) = *c };
-                    // NOTE: We need to do this collection into a separate
-                    // vector since we're mapping down ascii chars to u8s.
-                    debug_assert!(c.is_ascii());
-                    *c as u8
-                })
-                .collect::<Vec<u8>>()
-                .as_slice(),
-        )
-        .unwrap();
+    for c in virt_term_buffer.c_vec.iter() {
+        stdout.write(c.encode_utf8(&mut [0; 4]).as_bytes());
+    }
+
     stdout
         .queue(EndSynchronizedUpdate)
         .unwrap()
@@ -255,11 +243,15 @@ fn sys_display_paint(
             stdout
                 .queue(MoveTo(col as u16, row as u16))
                 .unwrap()
-                .write(&[*v_c as u8]);
+                .write(v_c.encode_utf8(&mut [0; 4]).as_bytes());
             // Update phys buffer
             *p_c_mut = *v_c;
         }
     }
+
+    #[cfg(all(debug_assertions, not(feature = "no_expensive_assertions")))]
+    assert_eq!(phys_term_buffer.c_vec, virt_term_buffer.c_vec);
+
     stdout
         .queue(EndSynchronizedUpdate)
         .unwrap()
