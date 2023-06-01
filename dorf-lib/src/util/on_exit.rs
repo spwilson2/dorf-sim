@@ -2,7 +2,10 @@ use crate::prelude::*;
 use bevy::app::AppExit;
 use once_cell::sync::Lazy;
 use shutdown_hooks::add_shutdown_hook;
-use std::sync::{atomic::AtomicBool, Arc, Mutex};
+use std::{
+    panic,
+    sync::{atomic::AtomicBool, Arc, Mutex},
+};
 
 pub type Callback = fn() -> ();
 pub struct RegisterOnExit(pub Callback);
@@ -17,9 +20,18 @@ struct OnExitCallbacks {}
 
 pub struct OnExitPlugin {}
 
+fn add_panic_hook(cb: extern "C" fn()) {
+    let old_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |a| {
+        cb();
+        old_hook(a);
+    }));
+}
+
 impl Plugin for OnExitPlugin {
     fn build(&self, app: &mut App) {
-        add_shutdown_hook(on_exit);
+        //add_shutdown_hook(on_exit);
+        add_panic_hook(on_exit);
 
         app.insert_resource(OnExitCallbacks {})
             .add_event::<RegisterOnExit>()

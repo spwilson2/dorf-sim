@@ -17,8 +17,7 @@ pub struct TerminalDisplayPlugin {}
 
 impl Plugin for TerminalDisplayPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(OnExitPlugin {})
-            .add_startup_system(init)
+        app.add_startup_system(init)
             .insert_resource(TerminalDisplayBuffer::init_from_screen())
             .add_system(handle_terminal_resize)
             .add_system(paint);

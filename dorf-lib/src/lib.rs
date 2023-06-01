@@ -44,6 +44,7 @@ pub fn app_main() {
         .add_plugins(MinimalPlugins)
         .add_plugin(terminal::TerminalPlugin::default())
         .add_plugin(script::ScriptPlugin::default())
+        .add_plugin(OnExitPlugin {}) // Note: Must be last in order to handle AppExit
         .run();
     log::info!("Exited app");
 }
