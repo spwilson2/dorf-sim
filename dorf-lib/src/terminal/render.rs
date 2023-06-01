@@ -15,7 +15,7 @@ pub struct CharTextureTransform {
 }
 
 /// Simple texture on top of transform
-#[derive(Component, Clone)]
+#[derive(Component, Debug, Clone)]
 pub struct CharTexture {
     pub texture: char,
 }
