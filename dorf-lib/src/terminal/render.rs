@@ -1,10 +1,12 @@
+use bevy::utils::petgraph::algo::Measure;
+
 use crate::prelude::*;
 use std::{
     cmp::{max, min, Ordering},
     collections::VecDeque,
 };
 
-use super::{camera::TerminalCamera2D, display::TerminalDisplayBuffer};
+use super::{camera::TerminalCamera2D, display::TerminalDisplayBuffer, CharPaintMeshTransform};
 
 /// This plugin is responsible for providing Components which can be rendered
 /// down onto a terminal screen and then painted.  Render logic is super simple:
@@ -21,7 +23,40 @@ impl Plugin for TerminalRenderPlugin {
 /// new Vec, each time keep one static.
 #[derive(Default)]
 struct RenderCache {
-    z_sort_cache: Vec<CharTextureTransform>,
+    z_sort_cache: Vec<Renderables>,
+}
+
+enum Renderables {
+    CharTextureTransform(CharTextureTransform),
+    CharPaintMeshTransform(CharPaintMeshTransform),
+}
+
+impl Renderables {
+    fn z_lvl(&self) -> i32 {
+        self.transform().z_lvl()
+    }
+    fn transform(&self) -> Transform2D {
+        match self {
+            Renderables::CharTextureTransform(t) => t.transform.clone(),
+            Renderables::CharPaintMeshTransform(t) => t.transform().clone(),
+        }
+    }
+    fn texture_at(&self, x: i32, y: i32) -> CharTexture {
+        match self {
+            Renderables::CharTextureTransform(t) => t.texture.clone(),
+            Renderables::CharPaintMeshTransform(t) => t.get(x, y).clone(),
+        }
+    }
+}
+
+impl PartialEq for Renderables {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::CharTextureTransform(l0), Self::CharTextureTransform(r0)) => false,
+            (Self::CharPaintMeshTransform(l0), Self::CharPaintMeshTransform(r0)) => false,
+            (l, r) => l == r,
+        }
+    }
 }
 
 fn render(
@@ -64,20 +99,23 @@ fn render(
     local.z_sort_cache.clear();
     local
         .z_sort_cache
-        .extend(
-            all_textures
-                .iter()
-                .map(|(texture, transform)| CharTextureTransform {
-                    texture: texture.clone(),
-                    transform: transform.clone(),
-                }),
-        );
-    local.z_sort_cache.sort_by(|l, r| {
-        r.transform
-            .z_lvl()
-            .partial_cmp(&l.transform.z_lvl())
-            .unwrap()
-    });
+        .extend(all_textures.iter().map(|(texture, transform)| {
+            Renderables::CharTextureTransform(CharTextureTransform {
+                texture: texture.clone(),
+                transform: transform.clone(),
+            })
+        }));
+    local
+        .z_sort_cache
+        .extend(all_mesh.iter().map(|(mesh, transform)| {
+            Renderables::CharPaintMeshTransform(CharPaintMeshTransform::from_parts(
+                mesh.clone(),
+                transform.clone(),
+            ))
+        }));
+    local
+        .z_sort_cache
+        .sort_by(|l, r| r.z_lvl().partial_cmp(&l.z_lvl()).unwrap());
 
     // Stash the bounds/dimensions to paint, we won't need to pain anything outside the camera.
     let camera_rec = Rect2D::from_transform2d(&camera.transform);
@@ -87,7 +125,7 @@ fn render(
     display_buf.reinit();
     for text_transform in local.z_sort_cache.iter() {
         // Iterate through all textures,
-        let overlap = camera_rec.intersect(Rect2D::from_transform2d(&text_transform.transform));
+        let overlap = camera_rec.intersect(Rect2D::from_transform2d(&text_transform.transform()));
         if overlap.is_empty() {
             // If no overlap, just continue to next
             continue;
@@ -107,7 +145,7 @@ fn render(
         for row in start.y..end.y {
             for col in start.x..end.x {
                 let tile = display_buf.get_mut_dbg_checked(col as usize, row as usize);
-                *tile = text_transform.texture.clone();
+                *tile = text_transform.texture_at(col + camera_rec.min.x, row + camera_rec.min.y);
             }
         }
     }

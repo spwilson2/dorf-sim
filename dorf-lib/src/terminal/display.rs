@@ -127,6 +127,8 @@ fn cleanup() {
     execute!(stdout(), LeaveAlternateScreen, crossterm::cursor::Show).unwrap();
 }
 
+/// Convert our own RGB implementation into crossterm's
+#[inline]
 fn rgb_convert(ours: RGB) -> Color {
     Color::Rgb {
         r: ours.r,

@@ -1,11 +1,12 @@
 pub mod camera;
+pub mod char_mesh;
+pub mod display;
 pub mod input;
 pub mod render;
 
-pub mod display;
-
 use crate::prelude::*;
 pub use camera::*;
+pub use char_mesh::*;
 pub use input::*;
 pub use render::*;
 
@@ -29,7 +30,6 @@ pub struct CharTextureTransform {
     texture: CharTexture,
     transform: Transform2D,
 }
-
 /// Simple texture on top of transform
 #[derive(Component, Debug, Clone, PartialEq)]
 pub struct CharTexture {
@@ -55,15 +55,4 @@ impl CharTexture {
             rgb: None,
         }
     }
-}
-
-pub struct CharBuf2D {
-    buf: Vec<char>,
-    dim: UVec2,
-}
-
-#[derive(Component, Debug, Clone)]
-pub struct CharPaintMesh {
-    c_buf: DisplayBuffer,
-    z_level: i32,
 }

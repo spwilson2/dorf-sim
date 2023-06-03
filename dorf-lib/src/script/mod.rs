@@ -56,4 +56,12 @@ fn spawn_centerpoint(mut cmd: Commands) {
             loc: Vec3::new(1.0, 0.0, 1.0),
         },
     ));
+
+    let mut mesh = CharPaintMeshTransform::new(Transform2D {
+        scale: UVec2::splat(4),
+        loc: Vec3::new(1.0, 0.0, 1.0),
+    });
+    mesh.fill(&CharTexture::new('x', Color::GREEN));
+    *mesh.get_local_mut(0, 1) = CharTexture::new('▢', Color::BLUE);
+    cmd.spawn(mesh);
 }

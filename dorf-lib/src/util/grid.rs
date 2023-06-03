@@ -15,6 +15,10 @@ impl<T: Clone> Grid2D<T> {
     }
 }
 impl<T> Grid2D<T> {
+    #[inline]
+    pub fn from_parts(data: Vec<T>, rect: Rect2D) -> Self {
+        Self { data, rect }
+    }
     pub fn rect(&self) -> &Rect2D {
         &self.rect
     }
@@ -22,6 +26,14 @@ impl<T> Grid2D<T> {
     pub fn get(&self, point: IVec2) -> Result<&T, LightError> {
         let idx = self.idx_for_point(point)?;
         match self.data.get(idx) {
+            Some(t) => Ok(t),
+            None => Err(LightError::OutOfBoundsError),
+        }
+    }
+    #[inline]
+    pub fn get_mut(&mut self, point: IVec2) -> Result<&mut T, LightError> {
+        let idx = self.idx_for_point(point)?;
+        match self.data.get_mut(idx) {
             Some(t) => Ok(t),
             None => Err(LightError::OutOfBoundsError),
         }
@@ -39,11 +51,9 @@ impl<T> Grid2D<T> {
     }
     #[inline]
     fn idx_for_point(&self, point: IVec2) -> Result<usize, LightError> {
-        if !self.rect.contains_exclusive_max(point.as_vec2()) {
-            return Err(LightError::OutOfBoundsError);
+        match self.rect.index_for_point(point) {
+            Some(res) => Ok(res),
+            None => Err(LightError::OutOfBoundsError),
         }
-        let top_left = self.rect.min;
-        // Distance_y * size_x  + Distance_x
-        Ok(((top_left.y + point.y) * self.rect.size().x + (top_left.x + point.x)) as usize)
     }
 }

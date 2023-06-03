@@ -1,3 +1,5 @@
+use bevy::a11y::accesskit::Rect;
+
 use crate::prelude::*;
 
 #[derive(Default, Debug, Component, Clone)]
@@ -14,5 +16,9 @@ impl Transform2D {
 
     pub fn as_tile(&self) -> IVec2 {
         tile_from_vec2(self.loc.xy())
+    }
+
+    pub fn as_rect2d(&self) -> Rect2D {
+        Rect2D::from_transform2d(self)
     }
 }

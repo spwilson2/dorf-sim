@@ -21,6 +21,8 @@ pub struct RGB {
 pub mod Color {
     use super::RGB;
     pub const RED: RGB = RGB::new(255, 0, 0);
+    pub const GREEN: RGB = RGB::new(0, 255, 0);
+    pub const BLUE: RGB = RGB::new(0, 0, 255);
 }
 
 impl RGB {

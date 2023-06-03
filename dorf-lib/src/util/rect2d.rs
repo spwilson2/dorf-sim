@@ -323,128 +323,15 @@ impl Rect2D {
         r.min = r.min.min(r.max);
         r
     }
-}
 
-//#[cfg(test)]
-//mod tests {
-//    use super::*;
-//
-//    #[test]
-//    fn well_formed() {
-//        let r = Rect2D::from_center_size(Vec2::new(3., -5.), Vec2::new(8., 11.));
-//
-//        assert!(r.min.abs_diff_eq(Vec2::new(-1., -10.5), 1e-5));
-//        assert!(r.max.abs_diff_eq(Vec2::new(7., 0.5), 1e-5));
-//
-//        assert!(r.center().abs_diff_eq(Vec2::new(3., -5.), 1e-5));
-//
-//        assert!((r.width() - 8.).abs() <= 1e-5);
-//        assert!((r.height() - 11.).abs() <= 1e-5);
-//        assert!(r.size().abs_diff_eq(Vec2::new(8., 11.), 1e-5));
-//        assert!(r.half_size().abs_diff_eq(Vec2::new(4., 5.5), 1e-5));
-//
-//        assert!(r.contains(Vec2::new(3., -5.)));
-//        assert!(r.contains(Vec2::new(-1., -10.5)));
-//        assert!(r.contains(Vec2::new(-1., 0.5)));
-//        assert!(r.contains(Vec2::new(7., -10.5)));
-//        assert!(r.contains(Vec2::new(7., 0.5)));
-//        assert!(!r.contains(Vec2::new(50., -5.)));
-//    }
-//
-//    #[test]
-//    fn rect_union() {
-//        let r = Rect2D::from_center_size(Vec2::ZERO, Vec2::ONE); // [-0.5,-0.5] - [0.5,0.5]
-//
-//        // overlapping
-//        let r2 = Rect2D {
-//            min: Vec2::new(-0.8, 0.3),
-//            max: Vec2::new(0.1, 0.7),
-//        };
-//        let u = r.union(r2);
-//        assert!(u.min.abs_diff_eq(Vec2::new(-0.8, -0.5), 1e-5));
-//        assert!(u.max.abs_diff_eq(Vec2::new(0.5, 0.7), 1e-5));
-//
-//        // disjoint
-//        let r2 = Rect2D {
-//            min: Vec2::new(-1.8, -0.5),
-//            max: Vec2::new(-1.5, 0.3),
-//        };
-//        let u = r.union(r2);
-//        assert!(u.min.abs_diff_eq(Vec2::new(-1.8, -0.5), 1e-5));
-//        assert!(u.max.abs_diff_eq(Vec2::new(0.5, 0.5), 1e-5));
-//
-//        // included
-//        let r2 = Rect2D::from_center_size(Vec2::ZERO, Vec2::splat(0.5));
-//        let u = r.union(r2);
-//        assert!(u.min.abs_diff_eq(r.min, 1e-5));
-//        assert!(u.max.abs_diff_eq(r.max, 1e-5));
-//
-//        // including
-//        let r2 = Rect2D::from_center_size(Vec2::ZERO, Vec2::splat(1.5));
-//        let u = r.union(r2);
-//        assert!(u.min.abs_diff_eq(r2.min, 1e-5));
-//        assert!(u.max.abs_diff_eq(r2.max, 1e-5));
-//    }
-//
-//    #[test]
-//    fn rect_union_pt() {
-//        let r = Rect2D::from_center_size(Vec2::ZERO, Vec2::ONE); // [-0.5,-0.5] - [0.5,0.5]
-//
-//        // inside
-//        let v = Vec2::new(0.3, -0.2);
-//        let u = r.union_point(v);
-//        assert!(u.min.abs_diff_eq(r.min, 1e-5));
-//        assert!(u.max.abs_diff_eq(r.max, 1e-5));
-//
-//        // outside
-//        let v = Vec2::new(10., -3.);
-//        let u = r.union_point(v);
-//        assert!(u.min.abs_diff_eq(Vec2::new(-0.5, -3.), 1e-5));
-//        assert!(u.max.abs_diff_eq(Vec2::new(10., 0.5), 1e-5));
-//    }
-//
-//    #[test]
-//    fn rect_intersect() {
-//        let r = Rect2D::from_center_size(Vec2::ZERO, Vec2::ONE); // [-0.5,-0.5] - [0.5,0.5]
-//
-//        // overlapping
-//        let r2 = Rect2D {
-//            min: Vec2::new(-0.8, 0.3),
-//            max: Vec2::new(0.1, 0.7),
-//        };
-//        let u = r.intersect(r2);
-//        assert!(u.min.abs_diff_eq(Vec2::new(-0.5, 0.3), 1e-5));
-//        assert!(u.max.abs_diff_eq(Vec2::new(0.1, 0.5), 1e-5));
-//
-//        // disjoint
-//        let r2 = Rect2D {
-//            min: Vec2::new(-1.8, -0.5),
-//            max: Vec2::new(-1.5, 0.3),
-//        };
-//        let u = r.intersect(r2);
-//        assert!(u.is_empty());
-//        assert!(u.width() <= 1e-5);
-//
-//        // included
-//        let r2 = Rect2D::from_center_size(Vec2::ZERO, Vec2::splat(0.5));
-//        let u = r.intersect(r2);
-//        assert!(u.min.abs_diff_eq(r2.min, 1e-5));
-//        assert!(u.max.abs_diff_eq(r2.max, 1e-5));
-//
-//        // including
-//        let r2 = Rect2D::from_center_size(Vec2::ZERO, Vec2::splat(1.5));
-//        let u = r.intersect(r2);
-//        assert!(u.min.abs_diff_eq(r.min, 1e-5));
-//        assert!(u.max.abs_diff_eq(r.max, 1e-5));
-//    }
-//
-//    #[test]
-//    fn rect_inset() {
-//        let r = Rect2D::from_center_size(Vec2::ZERO, Vec2::ONE); // [-0.5,-0.5] - [0.5,0.5]
-//
-//        let r2 = r.inset(0.3);
-//        assert!(r2.min.abs_diff_eq(Vec2::new(-0.8, -0.8), 1e-5));
-//        assert!(r2.max.abs_diff_eq(Vec2::new(0.8, 0.8), 1e-5));
-//    }
-//}
-//
+    #[inline]
+    pub fn index_for_point(&self, point: IVec2) -> Option<usize> {
+        if !self.contains_exclusive_max(point.as_vec2()) {
+            return None;
+        }
+        let top_left = self.min;
+        // Distance_y * size_x  + Distance_x
+        //Some(((top_left.y + point.y) * self.size().x + (top_left.x + point.x)) as usize)
+        Some(((-top_left.y + point.y) * self.size().x + (-top_left.x + point.x)) as usize)
+    }
+}
