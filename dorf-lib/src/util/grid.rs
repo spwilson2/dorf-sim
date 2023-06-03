@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Grid2D<T> {
     data: Vec<T>,
     rect: Rect2D,

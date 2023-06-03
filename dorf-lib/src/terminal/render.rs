@@ -28,10 +28,19 @@ fn render(
     mut local: Local<RenderCache>,
     changed: Query<(&CharTexture, &Transform2D), Or<(Changed<Transform2D>, Changed<CharTexture>)>>,
     all_textures: Query<(&CharTexture, &Transform2D)>,
+    changed_mesh: Query<
+        (&CharPaintMesh, &Transform2D),
+        Or<(Changed<Transform2D>, Changed<CharPaintMesh>)>,
+    >,
+    all_mesh: Query<(&CharPaintMesh, &Transform2D)>,
     camera: Res<TerminalCamera2D>,
     mut display_buf: ResMut<TerminalDisplayBuffer>,
 ) {
-    if changed.is_empty() && !display_buf.is_changed() && !camera.is_changed() {
+    if changed_mesh.is_empty()
+        && changed.is_empty()
+        && !display_buf.is_changed()
+        && !camera.is_changed()
+    {
         return;
     }
     let buf_width = display_buf.width;
@@ -80,7 +89,7 @@ fn render(
         // Iterate through all textures,
         let overlap = camera_rec.intersect(Rect2D::from_transform2d(&text_transform.transform));
         if overlap.is_empty() {
-            // If no overlayp, just continue to next
+            // If no overlap, just continue to next
             continue;
         }
 
@@ -97,13 +106,8 @@ fn render(
         // Iterate only through the sections that we're updating, and write.
         for row in start.y..end.y {
             for col in start.x..end.x {
-                let tile = display_buf
-                    .c_vec
-                    .get_mut((col + row * buf_width as i32) as usize)
-                    .unwrap();
-                if *tile == ' ' {
-                    *tile = text_transform.texture.texture;
-                }
+                let tile = display_buf.get_mut_dbg_checked(col as usize, row as usize);
+                *tile = text_transform.texture.clone();
             }
         }
     }

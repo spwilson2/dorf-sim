@@ -529,7 +529,7 @@ fn spawn_mv_player_over_time(mut cmd: Commands, mut cnt: Local<usize>) {
     cmd.spawn(Player {
         speed: Speed(5.0),
         goal: GoalLoc(Some(Vec2::new(0.0, 1.0))),
-        rect: CharTexture { texture: 'p' },
+        rect: CharTexture::new('▢', Color::RED),
         transform: Transform2D {
             scale: UVec2::splat(1),
             loc: Vec3::ZERO,
@@ -540,7 +540,7 @@ fn spawn_mv_player_over_time(mut cmd: Commands, mut cnt: Local<usize>) {
 
 fn spawn_collider_walls(mut cmd: Commands) {
     cmd.spawn(ColliderWall {
-        texture: CharTexture { texture: '▢' },
+        texture: CharTexture::from_char('▢'),
         transform: Transform2D {
             scale: UVec2 { x: 1, y: 5 },
             loc: Vec3 {

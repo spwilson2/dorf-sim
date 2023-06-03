@@ -9,6 +9,8 @@ pub use camera::*;
 pub use input::*;
 pub use render::*;
 
+use self::display::DisplayBuffer;
+
 #[derive(Default)]
 pub struct TerminalPlugin {}
 
@@ -29,12 +31,39 @@ pub struct CharTextureTransform {
 }
 
 /// Simple texture on top of transform
-#[derive(Component, Debug, Clone)]
+#[derive(Component, Debug, Clone, PartialEq)]
 pub struct CharTexture {
-    pub texture: char,
+    pub c: char,
+    pub rgb: Option<RGB>,
+}
+impl Default for CharTexture {
+    fn default() -> Self {
+        Self { c: ' ', rgb: None }
+    }
 }
 
-#[derive(Component)]
-pub struct CharPaintGrid {
-    grid: Grid2D<char>,
+impl CharTexture {
+    pub fn new(texture: char, rgb: RGB) -> Self {
+        Self {
+            c: texture,
+            rgb: Some(rgb),
+        }
+    }
+    pub fn from_char(texture: char) -> Self {
+        Self {
+            c: texture,
+            rgb: None,
+        }
+    }
+}
+
+pub struct CharBuf2D {
+    buf: Vec<char>,
+    dim: UVec2,
+}
+
+#[derive(Component, Debug, Clone)]
+pub struct CharPaintMesh {
+    c_buf: DisplayBuffer,
+    z_level: i32,
 }

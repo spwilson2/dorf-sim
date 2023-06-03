@@ -10,12 +10,12 @@ pub fn add_camera_frame_systems(app: &mut App, enabled: bool) {
 
 fn spawn_camera_frame(mut cmd: Commands) {
     let loc = Vec3::splat(1000.0);
-    let vert_wall = CharTexture { texture: '-' };
+    let vert_wall = CharTexture::from_char('-');
     let vert_wall_trans = Transform2D {
         scale: UVec2::splat(1),
         loc,
     };
-    let side_wall = CharTexture { texture: '|' };
+    let side_wall = CharTexture::from_char('|');
     let side_wall_trans = Transform2D {
         scale: UVec2::splat(1),
         loc,

@@ -2,12 +2,13 @@ use std::io::{stdout, StdoutLock, Write};
 
 use bytemuck::checked::try_cast_slice;
 use crossterm::cursor::MoveTo;
-use crossterm::queue;
+use crossterm::style::{Color, Stylize};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, size, BeginSynchronizedUpdate, Clear, ClearType,
     EndSynchronizedUpdate, EnterAlternateScreen, LeaveAlternateScreen, SetSize,
 };
 use crossterm::{execute, QueueableCommand};
+use crossterm::{queue, style};
 
 use crate::prelude::*;
 
@@ -21,21 +22,22 @@ pub struct TerminalDisplayBuffer(DisplayBuffer);
 
 #[derive(Debug, Clone)]
 pub struct DisplayBuffer {
-    // Currently we only support ascii and uncolored... Likely will change.
-    pub c_vec: Vec<char>,
+    // NOTE/TODO: Will want to add support for converting from RGB true color to 256
+    // https://www.ditig.com/256-colors-cheat-sheet
+    pub texture_vec: Vec<CharTexture>,
     pub width: u16,
     pub height: u16,
 }
 
 impl TerminalDisplayBuffer {
-    pub fn get_idx_mut_dbg_checked(&mut self, x: usize, y: usize) -> &mut char {
+    pub fn get_mut_dbg_checked(&mut self, x: usize, y: usize) -> &mut CharTexture {
         let width = self.width as usize;
         #[cfg(debug_assertions)]
         {
-            return self.c_vec.get_mut(x + y * width).unwrap();
+            return self.texture_vec.get_mut(x + y * width).unwrap();
         }
         #[cfg(not(debug_assertions))]
-        return unsafe { self.c_vec.get_mut(x + y * width).unwrap_unchecked() };
+        return unsafe { self.texture_vec.get_mut(x + y * width).unwrap_unchecked() };
     }
 }
 
@@ -57,8 +59,9 @@ impl DisplayBuffer {
     pub fn resize(&mut self, width: u16, height: u16) {
         self.width = width;
         self.height = height;
-        self.c_vec.clear();
-        self.c_vec.resize((width * height) as usize, ' ');
+        self.texture_vec.clear();
+        self.texture_vec
+            .resize((width * height) as usize, default());
     }
     pub fn reinit(&mut self) {
         let width = self.width;
@@ -90,7 +93,7 @@ impl DisplayBuffer {
     fn init_from_screen() -> Self {
         let (width, height) = get_term_size();
         let buf = DisplayBuffer {
-            c_vec: vec!['\0'; width as usize * height as usize],
+            texture_vec: vec![default(); width as usize * height as usize],
             width,
             height,
         };
@@ -122,6 +125,25 @@ fn cleanup() {
     log::info!("Performing terminal cleanup");
     disable_raw_mode().unwrap();
     execute!(stdout(), LeaveAlternateScreen, crossterm::cursor::Show).unwrap();
+}
+
+fn rgb_convert(ours: RGB) -> Color {
+    Color::Rgb {
+        r: ours.r,
+        g: ours.g,
+        b: ours.b,
+    }
+}
+
+#[inline]
+fn write_texture(stdout: &mut StdoutLock, texture: &CharTexture) {
+    let mut binding = [0; 4];
+    let c = texture.c.encode_utf8(&mut binding);
+    if let Some(rgb) = texture.rgb {
+        stdout.queue(style::PrintStyledContent(c.with(rgb_convert(rgb))));
+    } else {
+        stdout.write(c.as_bytes());
+    }
 }
 
 /// Handler for [`TerminalResize`] events, updates buffer sizes to match the new
@@ -160,8 +182,8 @@ fn paint_all(
     //phys_term_buffer.buf.reinit();
     phys_term_buffer.buf = virt_term_buffer.0.clone();
 
-    for c in virt_term_buffer.c_vec.iter() {
-        stdout.write(c.encode_utf8(&mut [0; 4]).as_bytes());
+    for texture in virt_term_buffer.texture_vec.iter() {
+        write_texture(&mut stdout, texture);
     }
 
     stdout
@@ -201,9 +223,12 @@ fn sys_display_paint(
             );
         }
     }
-    debug_assert_eq!(phys_term_buffer.c_vec.len(), virt_term_buffer.c_vec.len());
     debug_assert_eq!(
-        virt_term_buffer.c_vec.len(),
+        phys_term_buffer.texture_vec.len(),
+        virt_term_buffer.texture_vec.len()
+    );
+    debug_assert_eq!(
+        virt_term_buffer.texture_vec.len(),
         virt_term_buffer.width as usize * virt_term_buffer.height as usize
     );
 
@@ -213,7 +238,7 @@ fn sys_display_paint(
         return;
     }
 
-    if virt_term_buffer.c_vec == phys_term_buffer.c_vec {
+    if virt_term_buffer.texture_vec == phys_term_buffer.texture_vec {
         return;
     }
 
@@ -231,21 +256,18 @@ fn sys_display_paint(
 
     // Now just iterate, write in only changes...
     for (idx, (v_c, p_c_mut)) in virt_term_buffer
-        .c_vec
+        .texture_vec
         .iter()
-        .zip(phys_term_buffer.c_vec.iter_mut())
+        .zip(phys_term_buffer.texture_vec.iter_mut())
         .enumerate()
     {
         if *v_c != *p_c_mut {
             let col = idx % virt_term_buffer.width as usize;
             let row = idx / virt_term_buffer.width as usize;
             // Move cursor and write
-            stdout
-                .queue(MoveTo(col as u16, row as u16))
-                .unwrap()
-                .write(v_c.encode_utf8(&mut [0; 4]).as_bytes());
+            write_texture(stdout.queue(MoveTo(col as u16, row as u16)).unwrap(), v_c);
             // Update phys buffer
-            *p_c_mut = *v_c;
+            *p_c_mut = v_c.clone();
         }
     }
 

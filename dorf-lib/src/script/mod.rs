@@ -36,21 +36,21 @@ fn sys_exit_key_handler(mut input: EventReader<KeyboardInput>, mut writer: Event
 
 fn spawn_centerpoint(mut cmd: Commands) {
     cmd.spawn((
-        CharTexture { texture: '0' },
+        CharTexture::from_char('0'),
         Transform2D {
             scale: UVec2::splat(1),
             loc: Vec3::new(0.0, 0.0, 1.0),
         },
     ));
     cmd.spawn((
-        CharTexture { texture: '2' },
+        CharTexture::from_char('2'),
         Transform2D {
             scale: UVec2::splat(1),
             loc: Vec3::new(2.0, 0.0, 1.0),
         },
     ));
     cmd.spawn((
-        CharTexture { texture: '1' },
+        CharTexture::from_char('1'),
         Transform2D {
             scale: UVec2::splat(1),
             loc: Vec3::new(1.0, 0.0, 1.0),
