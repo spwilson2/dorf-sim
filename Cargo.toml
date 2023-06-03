@@ -7,4 +7,5 @@ members = [
 exclude = [
 "crates/bevy",
 "crates/glam-rs",
+"crates/noise-rs",
 ]

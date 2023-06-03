@@ -7,3 +7,6 @@
 [submodule "crates/glam-rs"]
 	path = crates/glam-rs
 	url = https://github.com/bitshifter/glam-rs
+[submodule "crates/noise-rs"]
+	path = crates/noise-rs
+	url = https://github.com/Razaekel/noise-rs
