@@ -1,6 +1,10 @@
 use std::cmp::max;
 
 use bevy::tasks::{AsyncComputeTaskPool, Task};
+use noise::{
+    utils::{ImageRenderer, NoiseMapBuilder, PlaneMapBuilder},
+    NoiseFn,
+};
 
 use crate::prelude::*;
 
@@ -11,6 +15,7 @@ pub const LOCAL_MAP_DIMMENSIONS: UVec2 = UVec2 { x: 100, y: 50 };
 //
 pub fn add_local_map_systems(app: &mut App, enabled: bool) {
     app.add_startup_system(sys_init_spawn_gen_req)
+        .add_startup_system(gen_map)
         .add_system(sys_prepare_gen_map_task);
 }
 
@@ -121,6 +126,7 @@ fn gen_map() {
     use noise::{utils::*, *};
     // Base wood texture. Uses concentric cylinders aligned on the z-axis, like a log.
     let base_wood = Cylinders::new().set_frequency(16.0);
+    render_noise(&base_wood, "0_base_wood.png");
 
     // Basic Multifractal noise to use for the wood grain.
     let wood_grain_noise = BasicMulti::<Perlin>::new(0)
@@ -128,18 +134,22 @@ fn gen_map() {
         .set_persistence(0.5)
         .set_lacunarity(2.20703125)
         .set_octaves(3);
+    render_noise(&wood_grain_noise, "1_grain_noise.png");
 
     // Stretch the perlin noise in the same direction as the center of the log. Should
     // produce a nice wood-grain texture.
     let scaled_base_wood_grain = ScalePoint::new(wood_grain_noise).set_z_scale(0.25);
+    render_noise(&scaled_base_wood_grain, "2_scaled_grain_noise.png");
 
     // Scale the wood-grain values so that they can be added to the base wood texture.
     let wood_grain = ScaleBias::new(scaled_base_wood_grain)
         .set_scale(0.25)
         .set_bias(0.125);
+    render_noise(&wood_grain, "3_biased_wood_grain.png");
 
     // Add the wood grain texture to the base wood texture.
     let combined_wood = Add::new(base_wood, wood_grain);
+    render_noise(&combined_wood, "4_combined.png");
 
     // Slightly perturb the wood to create a more realistic texture.
     let perturbed_wood = Turbulence::<_, Perlin>::new(combined_wood)
@@ -147,6 +157,7 @@ fn gen_map() {
         .set_frequency(4.0)
         .set_power(1.0 / 256.0)
         .set_roughness(4);
+    render_noise(&perturbed_wood, "5_pertubed.png");
 
     // Cut the wood texture a small distance from the center of the log.
     let translated_wood = TranslatePoint::new(perturbed_wood).set_y_translation(1.48);
@@ -164,16 +175,15 @@ fn gen_map() {
     let planar_texture = PlaneMapBuilder::<_, 2>::new(final_wood)
         .set_size(1024, 1024)
         .build();
+}
 
-    // Create a wood palette.
-    //let wood_gradient = ColorGradient::new()
-    //    .clear_gradient()
-    //    .add_gradient_point(-1.000, [189, 94, 4, 255])
-    //    .add_gradient_point(0.500, [144, 48, 6, 255])
-    //    .add_gradient_point(1.0, [60, 10, 8, 255]);
-
+fn render_noise<SourceModule>(src: &SourceModule, string: &str)
+where
+    SourceModule: NoiseFn<f64, 2>,
+{
+    let planar_texture = PlaneMapBuilder::<_, 2>::new(src.clone())
+        .set_size(1024, 1024)
+        .build();
     let mut renderer = ImageRenderer::new(); //.set_gradient(wood_gradient);
-    renderer
-        .render(&planar_texture)
-        .write_to_file("texture_wood_planar_no_texture.png");
+    renderer.render(&planar_texture).write_to_file(string);
 }
