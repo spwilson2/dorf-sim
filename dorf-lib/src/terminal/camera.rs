@@ -5,6 +5,24 @@ use super::input::TerminalResize;
 #[derive(Default)]
 pub struct TerminalCamera2dPlugin();
 
+/// A tag component indicate the component should be place relative to the Camera.
+#[derive(Component, Debug, Default)]
+pub struct UIComponent {
+    pub local_pos: Vec3,
+    /// If true local_pos is in units [0, 1] and it is interpreted as a ratio of screen size
+    /// If false, local_pos is an offset from topleft camera position.
+    pub relative_pos: bool,
+}
+
+impl UIComponent {
+    pub fn new(local_pos: Vec3) -> Self {
+        Self {
+            local_pos,
+            relative_pos: false,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct CameraResized(pub UVec2);
 
@@ -13,7 +31,8 @@ impl Plugin for TerminalCamera2dPlugin {
         app.insert_resource(TerminalCamera2D::default())
             .add_startup_system(init_camera_autosize)
             .add_event::<CameraResized>()
-            .add_system(handle_terminal_resize);
+            .add_system(handle_terminal_resize)
+            .add_system(sys_reposition_ui_elements_on_move.in_base_set(CoreSet::UpdateFlush));
     }
 }
 
@@ -26,6 +45,49 @@ fn init_camera_autosize(
         let update = UVec2::new(term_size.0 as u32, term_size.1 as u32);
         camera.set_dim(update);
         camera_event_writer.send(CameraResized(update));
+    }
+}
+
+fn sys_reposition_ui_elements_on_move(
+    camera: Res<TerminalCamera2D>,
+    mut ui_elems: Query<(&mut Transform2D, &UIComponent)>,
+) {
+    let update_ui_elem = |ui_transform: &mut Transform2D, ui_component: &UIComponent| {
+        if ui_component.relative_pos {
+            let z = ui_transform.loc.z;
+            ui_transform.loc = (camera.transform.loc.xy()
+                + camera.transform.scale.as_vec2() * ui_component.local_pos.xy())
+            .min(camera.transform.as_rect2d().max.xy().as_vec2() - Vec2::ONE)
+            .xyy();
+            ui_transform.loc.z = z;
+        } else {
+            ui_transform.loc = ui_component.local_pos + camera.transform.loc;
+        }
+    };
+    // TODO: Address inefficiency of the settings chaning affecting tihis. Might
+    // be better if camera is a component bundle instead...
+
+    //if !changed_ui_elems.is_empty() {
+    //    // We need to at least update these elements to recenter them.
+    //    for (mut transform, ui_component) in changed_ui_elems.iter_mut() {
+    //        update_ui_elem(transform.as_mut(), ui_component)
+    //    }
+    //}
+
+    if camera.is_changed() {
+        // We need to recenter all elements..
+        for (mut transform, ui_component) in ui_elems.iter_mut() {
+            update_ui_elem(transform.as_mut(), ui_component)
+        }
+    } else {
+        // XXX: Ideally, we could use a Query filter for this, but we can't
+        // grab two mutable references at the same time. Not sure how to handle
+        // other than by iterating over each one.
+        for (mut transform, ui_component) in ui_elems.iter_mut() {
+            if transform.is_changed() {
+                update_ui_elem(transform.as_mut(), ui_component)
+            }
+        }
     }
 }
 
@@ -46,6 +108,7 @@ fn handle_terminal_resize(
     }
 }
 
+// TODO: Refactor as a Bundel, we don't these components bound together.. Ideally they wouldn't be.
 #[derive(Resource, Default)]
 pub struct TerminalCamera2D {
     pub transform: Transform2D,

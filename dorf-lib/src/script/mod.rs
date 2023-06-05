@@ -57,7 +57,7 @@ fn spawn_centerpoint(mut cmd: Commands) {
         },
     ));
 
-    let mut mesh = CharPaintMeshTransform::new(Transform2D {
+    let mut mesh = CharMeshTransform::new(Transform2D {
         scale: UVec2::splat(4),
         loc: Vec3::new(1.0, 0.0, 1.0),
     });

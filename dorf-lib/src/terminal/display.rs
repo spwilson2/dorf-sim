@@ -211,7 +211,6 @@ fn sys_display_paint(
     if !virt_term_buffer.is_changed() {
         return;
     }
-    log::info!("Display change detected.");
     // For now, let's just check if  the dimmensions look like they're gonna be
     // fkd and log a warning, we can updated/fix in the next pass.
     #[cfg(debug_assertions)]
@@ -235,7 +234,6 @@ fn sys_display_paint(
     );
 
     if phys_term_buffer.need_flush {
-        log::info!("Performing full flush paint.");
         paint_all(virt_term_buffer, phys_term_buffer);
         return;
     }
@@ -245,7 +243,6 @@ fn sys_display_paint(
     }
 
     let mut stdout = stdout().lock();
-    log::info!("Painting individual updates.");
     queue!(
         stdout,
         BeginSynchronizedUpdate,

@@ -1,21 +1,21 @@
 use crate::prelude::*;
 
 #[derive(Component, Debug, Clone)]
-pub struct CharPaintMesh {
+pub struct CharMesh {
     pub texture_vec: Vec<CharTexture>,
 }
 
-#[derive(Bundle, Clone)]
-pub struct CharPaintMeshTransform {
-    mesh: CharPaintMesh,
+#[derive(Bundle, Clone, Debug)]
+pub struct CharMeshTransform {
+    mesh: CharMesh,
     transform: Transform2D,
 }
 
-impl CharPaintMeshTransform {
+impl CharMeshTransform {
     #[inline]
     pub fn new(transform: Transform2D) -> Self {
         Self {
-            mesh: CharPaintMesh {
+            mesh: CharMesh {
                 texture_vec: vec![default(); (transform.scale.x * transform.scale.y) as usize],
             },
             transform,
@@ -28,7 +28,7 @@ impl CharPaintMeshTransform {
     }
 
     #[inline]
-    pub fn from_parts(mesh: CharPaintMesh, transform: Transform2D) -> Self {
+    pub fn from_parts(mesh: CharMesh, transform: Transform2D) -> Self {
         Self { mesh, transform }
     }
 

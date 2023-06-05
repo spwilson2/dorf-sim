@@ -1,4 +1,4 @@
-use bevy::utils::petgraph::algo::Measure;
+use bevy::{ecs::schedule::ScheduleLabel, utils::petgraph::algo::Measure};
 
 use crate::prelude::*;
 use std::{
@@ -6,7 +6,10 @@ use std::{
     collections::VecDeque,
 };
 
-use super::{camera::TerminalCamera2D, display::TerminalDisplayBuffer, CharPaintMeshTransform};
+use super::{camera::TerminalCamera2D, display::TerminalDisplayBuffer, CharMeshTransform};
+
+#[derive(ScheduleLabel, Hash, Debug, PartialEq, Eq, Clone)]
+pub struct RenderSchedule;
 
 /// This plugin is responsible for providing Components which can be rendered
 /// down onto a terminal screen and then painted.  Render logic is super simple:
@@ -15,20 +18,21 @@ use super::{camera::TerminalCamera2D, display::TerminalDisplayBuffer, CharPaintM
 pub struct TerminalRenderPlugin();
 impl Plugin for TerminalRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(render);
+        app.add_system(render.in_base_set(CoreSet::PostUpdate));
     }
 }
 
 /// Local cache for the rendering function. Rather than needing to allocate a
 /// new Vec, each time keep one static.
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct RenderCache {
     z_sort_cache: Vec<Renderables>,
 }
 
+#[derive(Debug)]
 enum Renderables {
     CharTextureTransform(CharTextureTransform),
-    CharPaintMeshTransform(CharPaintMeshTransform),
+    CharPaintMeshTransform(CharMeshTransform),
 }
 
 impl Renderables {
@@ -63,11 +67,8 @@ fn render(
     mut local: Local<RenderCache>,
     changed: Query<(&CharTexture, &Transform2D), Or<(Changed<Transform2D>, Changed<CharTexture>)>>,
     all_textures: Query<(&CharTexture, &Transform2D)>,
-    changed_mesh: Query<
-        (&CharPaintMesh, &Transform2D),
-        Or<(Changed<Transform2D>, Changed<CharPaintMesh>)>,
-    >,
-    all_mesh: Query<(&CharPaintMesh, &Transform2D)>,
+    changed_mesh: Query<(&CharMesh, &Transform2D), Or<(Changed<Transform2D>, Changed<CharMesh>)>>,
+    all_mesh: Query<(&CharMesh, &Transform2D)>,
     camera: Res<TerminalCamera2D>,
     mut display_buf: ResMut<TerminalDisplayBuffer>,
 ) {
@@ -108,7 +109,7 @@ fn render(
     local
         .z_sort_cache
         .extend(all_mesh.iter().map(|(mesh, transform)| {
-            Renderables::CharPaintMeshTransform(CharPaintMeshTransform::from_parts(
+            Renderables::CharPaintMeshTransform(CharMeshTransform::from_parts(
                 mesh.clone(),
                 transform.clone(),
             ))
