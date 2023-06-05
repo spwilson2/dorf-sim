@@ -61,7 +61,7 @@ impl DisplayBuffer {
         self.height = height;
         self.texture_vec.clear();
         self.texture_vec
-            .resize((width * height) as usize, default());
+            .resize(width as usize * height as usize, default());
     }
     pub fn reinit(&mut self) {
         let width = self.width;
