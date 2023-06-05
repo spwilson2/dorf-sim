@@ -14,9 +14,9 @@ pub const LOCAL_MAP_DIMMENSIONS: UVec2 = UVec2 { x: 100, y: 50 };
 //pub const INIT_RATIO: f32 = 0.05;
 //
 pub fn add_local_map_systems(app: &mut App, enabled: bool) {
-    app.add_startup_system(sys_init_spawn_gen_req)
-        .add_startup_system(gen_map)
-        .add_system(sys_prepare_gen_map_task);
+    app.add_startup_system(sys_init_spawn_gen_req);
+    //.add_startup_system(gen_map)
+    //.add_system(sys_prepare_gen_map_task);
 }
 
 pub fn spawn_random_global_map() {
