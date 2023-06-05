@@ -115,7 +115,7 @@ fn render(
         }));
     local
         .z_sort_cache
-        .sort_by(|l, r| r.z_lvl().partial_cmp(&l.z_lvl()).unwrap());
+        .sort_by(|l, r| l.z_lvl().partial_cmp(&r.z_lvl()).unwrap());
 
     // Stash the bounds/dimensions to paint, we won't need to pain anything outside the camera.
     let camera_rec = Rect2D::from_transform2d(&camera.transform);
