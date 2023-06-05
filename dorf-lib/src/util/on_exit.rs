@@ -24,6 +24,11 @@ fn add_panic_hook(cb: extern "C" fn()) {
     let old_hook = panic::take_hook();
     panic::set_hook(Box::new(move |a| {
         cb();
+        log::error!(
+            "Panic: {}\n{}",
+            a.to_string(),
+            std::backtrace::Backtrace::capture().to_string()
+        );
         old_hook(a);
     }));
 }
