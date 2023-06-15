@@ -1,5 +1,6 @@
 [workspace]
 edition = "2021"
+resolver = "2"
 
 members = [
     "dorf-lib",
@@ -9,4 +10,5 @@ exclude = [
 "crates/bevy",
 "crates/glam-rs",
 "crates/noise-rs",
+"crates/proto-gen",
 ]

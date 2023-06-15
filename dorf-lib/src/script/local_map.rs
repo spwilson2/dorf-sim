@@ -1,10 +1,13 @@
 use std::cmp::max;
 
-use bevy::tasks::{AsyncComputeTaskPool, Task};
+use bevy::tasks::{AsyncComputeTaskPool, Task, TaskPool};
 use noise::{
     utils::{ImageRenderer, NoiseMapBuilder, PlaneMapBuilder},
     NoiseFn,
 };
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
+use strum::EnumCount;
 
 use crate::prelude::*;
 
@@ -14,9 +17,11 @@ pub const LOCAL_MAP_DIMMENSIONS: UVec2 = UVec2 { x: 100, y: 50 };
 //pub const INIT_RATIO: f32 = 0.05;
 //
 pub fn add_local_map_systems(app: &mut App, enabled: bool) {
-    app.add_startup_system(sys_init_spawn_gen_req);
+    app.add_system(sys_spawn_map_on_finish)
+        .add_system(sys_prepare_gen_map_task)
+        .add_startup_system(sys_init_spawn_gen_req);
+
     //.add_startup_system(gen_map)
-    //.add_system(sys_prepare_gen_map_task);
 }
 
 pub fn spawn_random_global_map() {
@@ -41,7 +46,7 @@ pub fn spawn_random_global_map() {
     // - Iteratively begin placing nodes that meet constraints
 }
 
-#[derive(Component, Debug, Copy, Clone)]
+#[derive(Component, Debug, Copy, Clone, FromPrimitive, strum_macros::EnumCount)]
 enum Biome {
     //Hill,
     Forest,
@@ -51,6 +56,7 @@ enum Biome {
     Ocean,
     Sand,
     Mountain,
+    Null,
 }
 
 #[derive(Bundle, Debug)]
@@ -74,20 +80,20 @@ impl BiomeBundle {
         }
     }
 }
+
 impl Biome {
     fn texture(&self) -> CharTexture {
-        CharTexture {
-            c: match self {
-                Biome::Forest => '|',
-                Biome::Ocean => '~',
-                Biome::Sand => '.',
-                Biome::Mountain => '^',
-                Biome::Grassland => todo!(),
-                Biome::Beach => todo!(),
-                //Biome::Desert => todo!(),
-                //Biome::Hill => todo!(),
-            },
-            rgb: default(),
+        let n = |c, r, g, b| CharTexture::new(c, RGB::new_f32(r, g, b));
+        match self {
+            Biome::Forest => n('|', 0.0, 0.3, 0.1),
+            Biome::Ocean => n('~', 0.0, 0.0, 0.7),
+            Biome::Sand => n('.', 1.00, 0.85, 0.10),
+            Biome::Mountain => n('^', 0.85, 0.85, 0.85),
+            Biome::Grassland => n('^', 0.53, 1.00, 0.30),
+            Biome::Beach => n('.', 1.00, 0.85, 0.10),
+            Biome::Null => n(' ', 0.00, 0.00, 0.00),
+            //Biome::Desert => todo!(),
+            //Biome::Hill => todo!(),
         }
     }
 }
@@ -95,11 +101,26 @@ struct MapGenResult {}
 
 #[derive(Component)]
 struct MapGenTask {
-    task: Task<MapGenResult>,
+    task: Option<Task<Map>>,
 }
 
 #[derive(Component)]
 struct MapGenTaskRequest {}
+
+#[derive(Component, Debug, Clone)]
+struct BiomeGrid(Grid2D<Biome>);
+
+impl BiomeGrid {
+    fn new(dim: UVec2) -> Self {
+        Self(Grid2D::<Biome>::new(IVec2::ZERO, dim, Biome::Null))
+    }
+}
+
+#[derive(Bundle)]
+struct Map {
+    mesh: CharMeshTransform,
+    biome_grid: BiomeGrid,
+}
 
 // Testing start code to kick off generating the map.
 pub fn sys_init_spawn_gen_req(cnt: Local<usize>, mut cmds: Commands) {
@@ -110,13 +131,46 @@ pub fn sys_init_spawn_gen_req(cnt: Local<usize>, mut cmds: Commands) {
 fn sys_prepare_gen_map_task(req_q: Query<(Entity, &MapGenTaskRequest)>, mut cmds: Commands) {
     for (entity, req) in req_q.iter() {
         let pool = AsyncComputeTaskPool::get();
-        let task = pool.spawn(async move {
-            gen_map();
-            MapGenResult {}
-        });
+        let task = pool.spawn(async move { gen_map_lite() });
 
-        cmds.entity(entity).insert(MapGenTask { task });
+        cmds.entity(entity).insert(MapGenTask { task: Some(task) });
         cmds.entity(entity).remove::<MapGenTaskRequest>();
+    }
+}
+
+fn sys_spawn_map_on_finish(mut cmds: Commands, mut q: Query<(Entity, &mut MapGenTask)>) {
+    for (entity, mut task) in q.iter_mut() {
+        if task.task.as_mut().unwrap().is_finished() {
+            cmds.entity(entity).despawn();
+            let pool = AsyncComputeTaskPool::get();
+            let task = task.task.take().unwrap();
+            pool.scope(|s| {
+                s.spawn_on_scope(async {
+                    let map = task.await;
+                    cmds.spawn(map);
+                })
+            });
+        }
+    }
+}
+fn gen_map_lite() -> Map {
+    // For now just generate random characters for the size of the map.
+    let mut bg = BiomeGrid::new(LOCAL_MAP_DIMMENSIONS);
+    let mut mesh = CharMeshTransform::new(Transform2D {
+        scale: bg.0.rect().size().as_uvec2(),
+        loc: Vec3::ZERO,
+    });
+    mesh.set_z_level(-1.0);
+    for x in 0..LOCAL_MAP_DIMMENSIONS.x {
+        for y in 0..LOCAL_MAP_DIMMENSIONS.y {
+            let biome = Biome::from_f32(fastrand::f32() * Biome::COUNT as f32).unwrap();
+            bg.0.set(IVec2::new(x as i32, y as i32), biome);
+            *mesh.get_mut(x as i32, y as i32) = biome.texture();
+        }
+    }
+    Map {
+        biome_grid: bg,
+        mesh,
     }
 }
 

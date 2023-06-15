@@ -28,6 +28,11 @@ impl CharMeshTransform {
     }
 
     #[inline]
+    pub fn set_z_level(&mut self, z: f32) {
+        self.transform.loc.z = z
+    }
+
+    #[inline]
     pub fn from_parts(mesh: CharMesh, transform: Transform2D) -> Self {
         Self { mesh, transform }
     }

@@ -522,7 +522,7 @@ struct ColliderWall {
 }
 
 fn spawn_mv_player_over_time(mut cmd: Commands, mut cnt: Local<usize>) {
-    if *cnt > 1000 {
+    if *cnt > 100000 {
         return;
     }
     *cnt += 1;

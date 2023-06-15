@@ -29,6 +29,12 @@ impl RGB {
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b }
     }
+    pub fn new_f32(r: f32, g: f32, b: f32) -> Self {
+        let r = (r * 255.0) as u8;
+        let g = (g * 255.0) as u8;
+        let b = (b * 255.0) as u8;
+        Self { r, g, b }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
