@@ -11,7 +11,7 @@ use strum::EnumCount;
 
 use crate::prelude::*;
 
-pub const LOCAL_MAP_DIMMENSIONS: UVec2 = UVec2 { x: 100, y: 50 };
+pub const LOCAL_MAP_DIMMENSIONS: UVec2 = UVec2 { x: 10, y: 50 };
 //
 ///// Number of points to seed with
 //pub const INIT_RATIO: f32 = 0.05;
@@ -188,7 +188,7 @@ fn gen_map() -> Map {
     use noise::{utils::*, *};
     // Base wood texture. Uses concentric cylinders aligned on the z-axis, like a log.
     let base_wood = Cylinders::new().set_frequency(16.0);
-    render_noise(&base_wood, "0_base_wood.png");
+    //render_noise(&base_wood, "0_base_wood.png");
 
     let src = base_wood.clone();
     let planar_texture = PlaneMapBuilder::<_, 2>::new(src)
@@ -255,6 +255,6 @@ where
     let planar_texture = PlaneMapBuilder::<_, 2>::new(src.clone())
         .set_size(1024, 1024)
         .build();
-    let mut renderer = ImageRenderer::new(); //.set_gradient(wood_gradient);
+    let mut renderer = ImageRenderer::new(); //.set_gradien0t(wood_gradient);
     renderer.render(&planar_texture).write_to_file(string);
 }
